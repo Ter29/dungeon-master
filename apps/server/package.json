@@ -17,7 +17,8 @@
     "test:auth": "tsx --env-file-if-exists=.env scripts/check-auth.ts",
     "test:campaigns": "tsx --env-file-if-exists=.env scripts/check-campaigns.ts",
     "test:rooms": "tsx --env-file-if-exists=.env scripts/check-rooms.ts",
-    "test:production": "tsx --env-file-if-exists=.env scripts/check-production.ts"
+    "test:production": "tsx --env-file-if-exists=.env scripts/check-production.ts",
+    "test:live": "tsx --env-file-if-exists=.env scripts/check-live.ts"
   },
   "dependencies": {
     "@dnd/shared": "^0.0.0",

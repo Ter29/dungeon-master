@@ -2,6 +2,8 @@
 
 Каркас монорепозиторію для D&D-сайту. Поточна папка `DnD` є коренем проєкту; додаткова вкладена папка `dungeon-master` не потрібна.
 
+Онлайн-сайт: [Dungeon Master](https://dungeon-master-tvra.onrender.com). Frontend, API та WebSocket працюють через одну HTTPS-адресу Render; база — Neon. Див. [розгортання й перевірки](DEPLOYMENT.md).
+
 ## Структура
 
 ```text

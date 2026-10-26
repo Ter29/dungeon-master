@@ -2,6 +2,18 @@
 
 One free Node.js web service serves the built React frontend, API and Socket.IO from the same HTTPS origin. PostgreSQL remains on Neon. No Render database or paid resource is needed.
 
+Live site: https://dungeon-master-tvra.onrender.com
+Render service: `srv-dbfb4l8m7kps738e51c0`, workspace `My Workspace`, Frankfurt, Free.
+Dashboard: https://dashboard.render.com/web/srv-dbfb4l8m7kps738e51c0
+
+Verified against the public site: valid HTTPS, frontend deep links, Secure-cookie registration, DM + three registered players, invite/join, authenticated WSS, presence, shared scene/token updates, Player movement rejection, pings, automatic reconnect and state restoration. Automated clients ran from one machine through the public endpoint; acceptance with humans on different PCs remains to be performed.
+
+```sh
+npm run test:live -w @dnd/server -- https://dungeon-master-tvra.onrender.com
+```
+
+This live test creates four temporary accounts/campaign data through public HTTP APIs, then uses the configured PostgreSQL connection to delete only its own records. It must target the deployment backed by that same database. It never prints passwords or session tokens.
+
 ## Render configuration
 
 - Repository: `https://github.com/Ter29/dungeon-master`, branch `main`.
