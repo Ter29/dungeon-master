@@ -51,3 +51,20 @@ npm run test:tokens -w @dnd/server -- https://dungeon-master-tvra.onrender.com
 The test uses DM + three simultaneous Players and an outsider with real Neon/Cloudinary. It covers CRUD/kinds/size/image, bounds, stale writes, grid, hidden payloads through APIs/WebSockets/image URLs, Reveal/Hide, pings without movement, reconnect and local backend restart. Test records/images are removed. Existing auth/campaign/room/scene tests remain separate regression checks.
 
 No Fog of War, initiative, combat rules or shared cartography were implemented. The server remains a single Render instance; external storage pricing/configuration are unchanged from Sprint 2.1. Previously viewed token images cannot be erased from a user's memory/screenshots after hiding, but future image requests are denied.
+
+## Verified results (2026-10-26)
+
+- TypeScript and production build passed. Existing auth, campaigns/invites, legacy rooms, production serving and Scene Foundation API tests passed with real PostgreSQL; their temporary records were removed.
+- Token tests passed locally and against public HTTPS/WSS for DM + three Players. Hidden IDs/names/image metadata were absent from captured Player socket payloads, lists and detail endpoints; direct hidden-image URLs returned 404. Reveal/Hide, image upload, CRUD, grid, stale revisions, bounds, pings, reconnect and campaign isolation passed.
+- Local backend restart preserved token coordinates and grid with real Neon/Cloudinary. Temporary browser-fixture tokens/images/positions also survived repeated Render deployments before cleanup.
+- Browser: wheel zoom, zoom buttons, Reset View, two-tab camera isolation, token creation, Reveal and image upload passed. A mouse drag at 186% zoom updated Hero from (180,150) to approximately (221.193,168.491), consistent with the screen-to-map scale, and another tab received the same coordinates without moving its camera.
+- Final Pan check: a 40×20 CSS-pixel drag at viewport scale 0.72 changed camera translation from (25,28.125) to (80.555557,55.902786), matching the expected (80.555556,55.902778). The other tab remained unchanged. One map/control set remained after socket updates.
+- Browser tests found and fixed duplicate sibling React keys and mutable-ref pan deltas before completion. The fixes were rebuilt and deployed; final checks passed.
+- The complete pre-2.2 snapshot (including existing scenes/media and active references) was restored and checked before applying the additive migration. An independent checksum/restore verification passed. Backups stay private in ignored `.backups`.
+- All test accounts, campaigns, tokens and Cloudinary images were removed. A synthetic-map browser screenshot is retained locally in `.backups/interactive-table-ui.png`.
+
+Deployment **live**: runtime commit `a88d969fc36ee63553eadadbb8ed07721ee70440`, deployment `dep-dbfk8ltg1s2s7384vj9g`, existing Free Frankfurt service `srv-dbfb4l8m7kps738e51c0`. URL unchanged: https://dungeon-master-tvra.onrender.com . Final `/`, `/api/health`, `/api/ready` returned 200; no error-level runtime logs were found after the final deployment became live. No new service or paid resource was created.
+
+Changed implementation files: `apps/client/src/features/scenes/InteractiveMap.tsx`, `TokenManager.tsx`, `LocationTable.tsx`; `apps/server/prisma/schema.prisma` and migration `20261026040000_table_tokens/migration.sql`; `apps/server/src/scenes/router.ts`, `state.ts`, `apps/server/src/sockets/rooms.ts`; `packages/shared/src/events/locations.ts`, `room.ts`, `packages/shared/src/index.ts`. Verification/recovery changes: `apps/server/scripts/check-tokens.ts`, `rehearse-scenes-migration.ts`, `restore-foundation-backup.ts`, `apps/server/package.json`; documentation: README and this report.
+
+Automated public clients ran from one machine. A human session across different PCs is still an acceptance exercise; no claim is made that real users completed it.
