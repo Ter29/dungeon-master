@@ -22,6 +22,8 @@ Sources: https://cloudinary.com/documentation/billing_and_plans ; https://cloudi
 
 Cloudinary is configured in the existing Render service, not in the frontend. The actual service is configured through MCP/Dashboard; `render.yaml` remains a template and is not used to create a duplicate service.
 
+Neon application traffic continues through pooled DATABASE_URL. Prisma migrations now use the separately verified, server-only DIRECT_URL. During the first environment update, the previous startup configuration hit a pooled advisory-lock timeout; the stale Prisma lock was released only on the pool backend reserved by our own transaction, without terminating other sessions. DIRECT_URL resolved the deployment failure.
+
 ## API and socket contracts
 
 Full API: [apps/server/scenes-api.md](apps/server/scenes-api.md).
@@ -77,3 +79,37 @@ npm run test:production -w @dnd/server
 ```
 
 Postman outage simulation and its evidence are documented in `postman/simulations/scene-storage-outage.context.md`. Test scripts use temporary accounts/records/images and clean up their own data. Local scene tests restart the backend and prove state and image survival; the public mode checks HTTP/WSS against the unchanged site URL.
+
+## Verified results and deployment
+
+All checks below passed on 2026-10-26:
+
+| Check | Result / scope |
+|---|---|
+| TypeScript / production build | Passed |
+| Backup / migration rehearsal | Pre-2.1 data restored exactly in isolated schema, additive migration preserved existing columns |
+| Independent backup restore command | SHA-256 verified; records restored exactly; verification schema removed |
+| Real Cloudinary | Authenticated PNG upload/download, equal bytes, unsigned access denied, cleanup passed |
+| Scene API local | CRUD, permissions, PNG/JPG, corrupt/spoofed/oversized/over-resolution rejection, replacement, conflicts, private drafts, blank/active scene |
+| Synchronization | Active metadata/background and activation broadcast; campaign isolation, reconnect/reload and local server restart with real Neon/Cloudinary |
+| Postman outage | Actual SDK/app through HTTP 503 simulation preserved the old background and state |
+| Sprint 1 regressions | Auth, campaigns/invites, DM + six players, legacy room state, production serving passed |
+| Public HTTPS/WSS | Same Scene API and role tests passed against the deployed site |
+| Browser | Temporary DM logged in, created a location, uploaded a PNG through the file chooser, activated it, refreshed; actual image loaded at 640×400 |
+| Cleanup | Temporary accounts, campaigns and provider images removed; private backup and proof screenshot retained locally |
+
+Production service `srv-dbfb4l8m7kps738e51c0` in the existing `My Workspace`, Free, Frankfurt. Runtime commit `4a31c5ecf05e884a3cc57fe5890d9deff96645e2`. Deployment `dep-dbfc5b67bikc73cv8r1g` reached **live**. URL unchanged: https://dungeon-master-tvra.onrender.com . Final `/`, `/api/health`, `/api/ready` all returned HTTP 200; no error-level logs were found after this deployment became live.
+
+HTTP readiness endpoint is available; this MCP-created service still uses Render's default TCP platform probe (the creation tool did not expose healthCheckPath). `render.yaml` documents `/api/ready` for Blueprint configuration. No duplicate service or paid plan was created.
+
+Remaining scope limits: no new tokens, Fog of War, pan/zoom or shared cartography; the location background is visible in full when activated. Multiple humans on different PCs remain a separate acceptance exercise. Cleanup retries are manual, not scheduled.
+
+## Changed files
+
+- Data: `apps/server/prisma/schema.prisma`, `apps/server/prisma/migrations/20261026030000_scene_foundation/migration.sql`.
+- Server: `apps/server/src/scenes/router.ts`, `state.ts`, `storage.ts`; `apps/server/src/index.ts`, `apps/server/src/sockets/rooms.ts`.
+- Client: `apps/client/src/features/scenes/LocationManager.tsx`, `LocationTable.tsx`; `apps/client/src/features/campaigns/CampaignPage.tsx`, `apps/client/src/lib/api.ts`.
+- Contracts: `packages/shared/src/events/locations.ts`, `room.ts`, `packages/shared/src/index.ts`, `apps/server/scenes-api.md`.
+- Verification/recovery: `apps/server/scripts/check-scenes.ts`, `check-storage.ts`, `check-storage-outage.ts`, `cleanup-media.ts`, `rehearse-scenes-migration.ts`, `restore-foundation-backup.ts`.
+- Dependency simulation: `postman/mocks/cloudinary/config.yaml`, `default.js`; `postman/simulations/scene-storage-outage.sim.yaml`, `scene-storage-outage.context.md`.
+- Configuration/docs: `.gitignore`, `apps/server/.env.example`, `apps/server/package.json`, `package-lock.json`, `README.md`, `DEPLOYMENT.md`, `SCENE_FOUNDATION.md`. Real `.env` and backups are not committed.

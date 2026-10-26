@@ -23,7 +23,7 @@ This live test creates four temporary accounts/campaign data through public HTTP
 - Health check: `/api/ready` (checks the migrated database).
 - Environment: `NODE_ENV=production`, `NODE_VERSION=24.14.0`, `DATABASE_URL` from Neon.
 - Omit `APP_ORIGIN` to use Render's `RENDER_EXTERNAL_URL`. For a custom domain, set `APP_ORIGIN` to its exact HTTPS origin, without a path.
-- Optional `DIRECT_URL` for migrations. Default is `DATABASE_URL`.
+- `DIRECT_URL` is configured for migrations on Neon (direct hostname without `-pooler`); application requests continue using pooled `DATABASE_URL`. This avoids session-level advisory-lock failures through PgBouncer.
 
 `render.yaml` describes this configuration for Blueprint deployment. Do not create a second service from the Blueprint if the service already exists. The connected Render creation tool may not expose a health-check field; if created through that tool, set `/api/ready` in Render Settings afterwards.
 
