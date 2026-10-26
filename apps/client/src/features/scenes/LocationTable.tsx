@@ -42,6 +42,7 @@ export function LocationTable({ campaignId, role }: { campaignId: string; role: 
       <h4>{state.scene.name}</h4><p style={{ whiteSpace: 'pre-wrap' }}>{state.scene.description}</p>
       {tableError&&<p role="alert">{tableError}</p>}
       <InteractiveMap key={`map-${state.scene.id}`} scene={state.scene} dm={role==='DM'} ready={Boolean(connection.current?.connected)} pulse={pulse}
+        saveFog={async operations=>{setTableError('');try{await api(`/campaigns/${campaignId}/locations/${state.scene!.id}/fog`,{revision:state.scene!.fog.revision,operations},'PATCH');}catch(error){setTableError(errorMessage(error));setRetry(value=>value+1);}}}
         move={async(token,point)=>{setTableError('');try{await api(`/campaigns/${campaignId}/locations/${state.scene!.id}/tokens/${token.id}`,{...point,revision:token.revision},'PATCH');}catch(error){setTableError(errorMessage(error));}}}
         ping={point=>{const socket=connection.current;if(!socket?.connected)return;socket.timeout(10000).emit('location:ping',{...point,sceneId:state.scene!.id},(error,reply)=>{if(error)setTableError('Пінг не підтверджено.');else if(!reply.ok)setTableError(reply.message);});}}/>
       {role==='DM'&&<TokenManager key={`tokens-${state.scene.id}`} scene={state.scene} campaignId={campaignId}/>}

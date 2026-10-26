@@ -20,7 +20,7 @@ try{
  const campaign=await prisma.campaign.create({data:{name:'Token test',members:{create:[{userId:dm.id,role:'DM'},...players.map(p=>({userId:p.id,role:'PLAYER' as const}))]}}});campaigns.push(campaign.id);
  const other=await prisma.campaign.create({data:{name:'Other token test',members:{create:{userId:dm.id,role:'DM'}}}});campaigns.push(other.id);
  await start();const locations=`/api/campaigns/${campaign.id}/locations`;
- let response=await request(locations,dm.cookie,{name:'Token arena'});assert.equal(response.status,201);let scene=(await response.json()).scene;
+ let response=await request(locations,dm.cookie,{name:'Token arena',initialFog:'revealed'});assert.equal(response.status,201);let scene=(await response.json()).scene;
  const png=await sharp({create:{width:640,height:400,channels:3,background:'#72624a'}}).png().toBuffer();
  const form=new FormData();form.set('revision','0');form.set('file',new Blob([new Uint8Array(png)],{type:'image/png'}),'map.png');
  response=await request(`${locations}/${scene.id}/background`,dm.cookie,form);assert.equal(response.status,200);scene=(await response.json()).scene;

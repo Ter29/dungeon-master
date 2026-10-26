@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { prisma } from '../database/client.js';
 import { sessionUser } from '../auth/router.js';
 import { appOrigin } from '../config/app.js';
-import { SceneError, activeSnapshot, locationEvents, sceneView, tokenView } from './state.js';
+import { SceneError, activeSnapshot, locationEvents, sceneView, tokenView, playerCanSeeToken } from './state.js';
+import {applyFog,FOG_HEX_LENGTH} from '@dnd/shared';
 import { MAX_IMAGE_BYTES, cleanupMedia, normalizeImage, readImage, storageAvailable, uploadImage } from './storage.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
@@ -69,8 +70,8 @@ sceneRouter.get('/', dm, async (_req, res) => {
 });
 sceneRouter.get('/active', async (_req, res) => { res.json(await activeSnapshot(res.locals.campaignId, res.locals.member.role)); });
 sceneRouter.post('/', dm, limit, async (req, res) => {
-  const data = parse(fields, req.body);
-  const scene = await prisma.scene.create({ data: { ...data, campaignId: res.locals.campaignId }, include: { background: true } });
+  const {initialFog,...data} = parse(fields.extend({initialFog:z.enum(['hidden','revealed']).default('hidden')}), req.body);
+  const scene = await prisma.scene.create({ data: { ...data, fogMask:initialFog==='hidden'?'0'.repeat(FOG_HEX_LENGTH):'',campaignId: res.locals.campaignId }, include: { background: true } });
   notify(res.locals.campaignId); res.status(201).json({ scene: sceneView(scene) });
 });
 sceneRouter.post('/activate', dm, limit, async (req, res) => {
@@ -140,7 +141,7 @@ sceneRouter.post('/:sceneId/background', dm, validScene, uploadLimit, uploadSlot
   const result = await locked(res.locals.campaignId, async tx => {
     const old = await currentScene(tx, res.locals.campaignId, res.locals.sceneId, revision);
     await tx.mediaFile.update({ where: { id: file.id }, data: { deletedAt: null } });
-    const scene = await tx.scene.update({ where: { id: old.id }, data: { backgroundId: file.id, revision: { increment: 1 } }, include: { background: true } });
+    const scene = await tx.scene.update({ where: { id: old.id }, data: { backgroundId: file.id, revision: { increment: 1 },...(old.backgroundId?{fogMask:'0'.repeat(FOG_HEX_LENGTH),fogRevision:{increment:1}}:{}) }, include: { background: true } });
     if (old.backgroundId) await tx.mediaFile.update({ where: { id: old.backgroundId }, data: { deletedAt: new Date() } });
     await bumpIfActive(tx, scene.campaignId, scene.id); return { scene, oldId: old.backgroundId };
   });
@@ -196,14 +197,14 @@ sceneRouter.patch('/:sceneId/grid',dm,validScene,tableLimit,async(req,res)=>{
   });notify(res.locals.campaignId);res.json({scene:sceneView(updated)});
 });
 sceneRouter.get('/:sceneId/tokens',validScene,async(_req,res)=>{
-  await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
+  const scene=await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
   const tokens=await prisma.token.findMany({where:{sceneId:res.locals.sceneId,...(res.locals.member.role==='DM'?{}:{hidden:false})},include:{image:true},orderBy:[{createdAt:'asc'},{id:'asc'}]});
-  res.json({tokens:tokens.map(token=>tokenView(token,res.locals.campaignId))});
+  res.json({tokens:tokens.filter(token=>res.locals.member.role==='DM'||playerCanSeeToken(scene,token)).map(token=>tokenView(token,res.locals.campaignId))});
 });
 sceneRouter.get('/:sceneId/tokens/:tokenId',validScene,async(req,res)=>{
-  await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
+  const scene=await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
   const token=await findToken(prisma,res.locals.sceneId,String(req.params.tokenId));
-  if(token.hidden&&res.locals.member.role!=='DM') throw new SceneError(404,'Токен не знайдено.');
+  if(res.locals.member.role!=='DM'&&!playerCanSeeToken(scene,token)) throw new SceneError(404,'Токен не знайдено.');
   res.json({token:tokenView(token,res.locals.campaignId)});
 });
 sceneRouter.post('/:sceneId/tokens',dm,validScene,tableLimit,async(req,res)=>{
@@ -254,11 +255,37 @@ sceneRouter.post('/:sceneId/tokens/:tokenId/image',dm,validScene,validToken,uplo
 });
 sceneRouter.get('/:sceneId/tokens/:tokenId/image/:mediaId',validScene,async(req,res)=>{
   async function allowed(){
-    await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
+    const scene=await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
     const token=await findToken(prisma,res.locals.sceneId,String(req.params.tokenId));
-    if((token.hidden&&res.locals.member.role!=='DM')||token.imageId!==req.params.mediaId||!token.image||token.image.deletedAt)throw new SceneError(404,'Зображення не знайдено.');
+    if((res.locals.member.role!=='DM'&&!playerCanSeeToken(scene,token))||token.imageId!==req.params.mediaId||!token.image||token.image.deletedAt)throw new SceneError(404,'Зображення не знайдено.');
     return token.image;
   }
   const file=await allowed();const bytes=await readImage(file.storageKey,file.format);await allowed();
   res.set({'Content-Type':file.mimeType,'Content-Length':String(bytes.length),'Cache-Control':'private, no-store'});res.end(bytes);
+});
+
+const fogPoint=z.object({x:z.number().min(0).max(100000),y:z.number().min(0).max(100000)});
+const fogMode=z.enum(['reveal','hide']);
+const fogOperation=z.discriminatedUnion('kind',[
+ z.object({kind:z.literal('all'),mode:fogMode}).strict(),
+ z.object({kind:z.literal('rectangle'),mode:fogMode,from:fogPoint,to:fogPoint}).strict(),
+ z.object({kind:z.literal('brush'),mode:fogMode,radius:z.number().min(1).max(10000),points:z.array(fogPoint).min(1).max(128)}).strict(),
+]);
+sceneRouter.get('/:sceneId/fog',validScene,async(_req,res)=>{
+ const scene=await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
+ res.json({fog:{revision:scene.fogRevision,bits:scene.fogMask}});
+});
+sceneRouter.patch('/:sceneId/fog',dm,validScene,tableLimit,async(req,res)=>{
+ const data=parse(z.object({revision:revisionSchema,operations:z.array(fogOperation).min(1).max(32)}).strict(),req.body);
+ const points=data.operations.reduce((sum,op)=>sum+(op.kind==='brush'?op.points.length:op.kind==='rectangle'?2:0),0);
+ if(points>256)throw new SceneError(400,'Пакет містить забагато точок.');
+ const fog=await locked(res.locals.campaignId,async tx=>{
+  const scene=await currentScene(tx,res.locals.campaignId,res.locals.sceneId);
+  if(scene.fogRevision!==data.revision)throw new SceneError(409,'Туман вже змінився. Оновлено до останнього стану; повторіть штрих.');
+  const width=scene.background?.width??1000,height=scene.background?.height??700;
+  for(const op of data.operations){const pts=op.kind==='brush'?op.points:op.kind==='rectangle'?[op.from,op.to]:[];for(const p of pts)if(p.x>width||p.y>height)throw new SceneError(400,'Координати за межами карти.');}
+  const bits=applyFog(scene.fogMask,width,height,data.operations);
+  const saved=await tx.scene.update({where:{id:scene.id},data:{fogMask:bits,fogRevision:{increment:1}},select:{fogMask:true,fogRevision:true}});
+  await bumpIfActive(tx,scene.campaignId,scene.id);return{bits:saved.fogMask,revision:saved.fogRevision};
+ });notify(res.locals.campaignId);res.json({fog});
 });

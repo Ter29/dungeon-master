@@ -8,6 +8,7 @@ export function LocationManager({ campaignId, refreshKey }: { campaignId: string
   const [list, setList] = useState<List | null>(null);
   const [selected, setSelected] = useState<LocationView | null>(null);
   const [name, setName] = useState(''); const [description, setDescription] = useState('');
+  const [initialFog,setInitialFog]=useState('hidden');
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
   async function load() { setList(await api<List>(base)); }
@@ -22,7 +23,7 @@ export function LocationManager({ campaignId, refreshKey }: { campaignId: string
     event.preventDefault();
     void run(async () => {
       const { scene } = await api<{ scene: LocationView }>(selected ? `${base}/${selected.id}` : base,
-        { name, description, ...(selected ? { revision: selected.revision } : {}) }, selected ? 'PATCH' : 'POST');
+        { name, description, ...(selected ? { revision: selected.revision } : {initialFog}) }, selected ? 'PATCH' : 'POST');
       edit(scene);
     });
   }
@@ -59,6 +60,7 @@ export function LocationManager({ campaignId, refreshKey }: { campaignId: string
     <form onSubmit={save}><fieldset disabled={busy}><legend>{selected ? 'Редагувати локацію' : 'Створити локацію'}</legend>
       <p><label>Назва <input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label></p>
       <p><label>Опис, видимий гравцям активної локації <textarea maxLength={4000} value={description} onChange={event => setDescription(event.target.value)} /></label></p>
+      {!selected&&<p><label>Початковий туман <select value={initialFog} onChange={e=>setInitialFog(e.target.value)}><option value="hidden">Уся локація прихована</option><option value="revealed">Уся локація відкрита</option></select></label></p>}
       <button>{busy ? 'Зберігаємо…' : 'Зберегти'}</button>
       {selected && <button type="button" onClick={() => void run(async () => { edit((await api<{ scene: LocationView }>(`${base}/${selected.id}`)).scene); })}>Перезавантажити локацію</button>}
     </fieldset></form>
