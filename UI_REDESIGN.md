@@ -25,7 +25,19 @@ Theme: graphite/navy panels, restrained gold/bronze, warm text, green connection
 
 Local TypeScript and production build passed. Local browser suite passed all seven DM sections and four Player sections at 1920×1080 and 1366×768, with no document/main/context horizontal overflow or unnamed visible buttons. Verified actual token drag, real Fog brush save, private Player data/controls, mounted camera/draft preservation, private Preview, Show/Table, Audio UI/favorites, initiative Next, section restoration and reconnect. A separate real-audio browser suite passed DM + 3 Player output, errors/retry, mixing, volume isolation and Director compatibility. Browser tests exposed and fixed status text that could hide a play error or remain “playing” after Stop.
 
-No Prisma changes were introduced for the redesign. The separately verified additive Audio migration and backup/restore evidence are in [AUDIO_ENGINE.md](AUDIO_ENGINE.md). Production deployment details will be appended after public checks.
+No Prisma changes were introduced for the redesign. The separately verified additive Audio migration and backup/restore evidence are in [AUDIO_ENGINE.md](AUDIO_ENGINE.md).
+
+## Production release
+
+Live: https://dungeon-master-tvra.onrender.com (unchanged). Runtime commit `989b7bb80f9c0b2a55ee8c994e32a0d0656abfc0`, Render deploy `dep-dbfssd6k1f9s738acs3g`, live 2026-10-26 22:04:52 UTC. Same existing Free Frankfurt service, one instance, same secrets. No paid resources added.
+
+Production checks passed: readiness (`ok`, database `connected`); `test:live`; Audio API (DM + 3); Director; combat; Fog/token permissions; cartography; real-audio browser suite (DM + 3 actual browser contexts); full workspace browser suite with both viewport sizes. Verified real token drag/Fog brush and initiative change through the UI. Four automated browser sessions are not four physical PCs. Installed Chrome allows the isolated autoplay probe; the explicit activation guard, actual failed-play feedback/retry and real output waveform were verified.
+
+Production persistence: the two looping audio channels seeded before deployment retained asset IDs, positions, original start anchors, loop/gain and version afterwards; Scene/Fog/token and round-4 combat records compared exactly. Only the current-time placeholder of a no-op fade was excluded from comparison. Fresh backup `pre-table-foundation-1793052244392.json` independently restored and compared in an isolated schema, removed afterwards.
+
+One parallel upload test initially received the intended shared-slot 429. Upload-heavy checks were then serialized. Audio browser offline checks allow the documented Socket.IO heartbeat interval; tests honor a bounded server Retry-After if the production upload quota is reached. Production upload/rate limits were not disabled or bypassed. All production test accounts, campaigns and media were cleaned; backups and screenshots remain local/ignored. Error-level Render logs were checked after rollout.
+
+Screenshots (local private artifacts): `.backups/workspace-ui-public/`: `dm-table-{1920,1366}.png`, `dm-scenes-{1920,1366}.png`, `dm-maps-{1920,1366}.png`, `dm-director-{1920,1366}.png`, `dm-audio-{1920,1366}.png`, `dm-combat-{1920,1366}.png`, `dm-campaign-{1920,1366}.png`, `player-table-{1920,1366}.png`, `player-illustration-1366.png`. Images were inspected after capture; the Director screenshot waits for the local fade to finish. Screenshots and the supplied map are not published in Git.
 
 Tests: `npm run typecheck`, `npm run build`, `npm run test:workspace-browser -w @dnd/server [-- HTTPS_ORIGIN]`, `npm run test:audio-browser -w @dnd/server [-- HTTPS_ORIGIN]`. Browser tests use isolated synthetic accounts and private campaigns, clean up provider assets/data, and do not access the user's browser profile. Optional `UI_MAP_PATH` supplies a local test map; fallback is a generated geometric test image. No user map is committed to Git.
 

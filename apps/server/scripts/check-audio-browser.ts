@@ -26,8 +26,12 @@ let campaignId: string | undefined,
   child: ReturnType<typeof spawn> | undefined,
   vite: ViteDevServer | undefined,
   browser: Browser | undefined;
-async function wait(fn: () => Promise<boolean>, label: string) {
-  const end = Date.now() + 30000;
+async function wait(
+  fn: () => Promise<boolean>,
+  label: string,
+  timeout = 30000,
+) {
+  const end = Date.now() + timeout;
   while (!(await fn())) {
     if (Date.now() > end) throw Error(label);
     await new Promise((r) => setTimeout(r, 100));
@@ -107,6 +111,7 @@ try {
     path: string,
     data?: unknown,
     method = data === undefined ? "GET" : "POST",
+    retries = 0,
   ) {
     const r = await fetch(apiBase + path, {
       method,
@@ -121,6 +126,29 @@ try {
         ? {}
         : { body: data instanceof FormData ? data : JSON.stringify(data) }),
     });
+    if (
+      live &&
+      r.status === 429 &&
+      data instanceof FormData &&
+      r.headers.get("retry-after")
+    ) {
+      assert.ok(retries < 1, "only one quota-window retry");
+      await r.arrayBuffer();
+      const seconds = Number(r.headers.get("retry-after"));
+      assert.ok(
+        Number.isFinite(seconds) && seconds >= 0 && seconds <= 900,
+        "bounded server retry-after",
+      );
+      console.log(
+        `Production upload quota reached; respecting Retry-After (${seconds}s) without changing limits.`,
+      );
+      const until = Date.now() + (seconds + 1) * 1000;
+      while (Date.now() < until)
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.min(30000, until - Date.now())),
+        );
+      return request(path, data, method, retries + 1);
+    }
     assert.ok(r.ok, `${method} ${path}: ${await r.clone().text()}`);
     return r.status === 204 ? null : r.json();
   }
@@ -263,7 +291,7 @@ try {
     });
   // Playwright evaluate supplies a user gesture. Explicitly omit it for the policy probe.
   const cdp = await contexts[1]!.newCDPSession(pages[1]!);
-  const probeUrl='data:audio/wav;base64,'+wav(.2).toString('base64');
+  const probeUrl = "data:audio/wav;base64," + wav(0.2).toString("base64");
   const blockedResult = await cdp.send("Runtime.evaluate", {
     expression: `(async()=>{const a=new Audio(${JSON.stringify(probeUrl)});try{await a.play();a.pause();return 'unexpected-play';}catch(e){return e.name;}})()`,
     awaitPromise: true,
@@ -434,6 +462,7 @@ try {
   await wait(
     async () => (await proof(pages[1]!)).playing === 0,
     "disconnect pauses actual output",
+    65000,
   );
   await contexts[1]!.setOffline(false);
   await wait(

@@ -262,7 +262,6 @@ try {
   const assets = [];
   for (const [name, category, hz] of [
     ["Вогні таверни", "MUSIC", 220],
-    ["Дощ на старому даху", "AMBIENCE", 100],
     ["Віддалений грім", "SFX", 60],
   ] as const) {
     const form = new FormData();
@@ -275,6 +274,15 @@ try {
     );
     assets.push((await request(prefix + "/audio/assets", form)).asset);
   }
+  const initialAudio = await request(prefix + "/audio/state");
+  await request(prefix + "/audio/channels/MUSIC", {
+    version: initialAudio.version,
+    action: "PLAY",
+    assetId: assets[0]!.id,
+    assetRevision: assets[0]!.revision,
+    fadeMs: 0,
+    loop: true,
+  });
   browser = await chromium.launch({
     channel: process.env.AUDIO_BROWSER_CHANNEL || "chrome",
     headless: true,
@@ -316,7 +324,7 @@ try {
     await page.screenshot({
       path: resolve(output, name + ".png"),
       fullPage: false,
-      animations:'disabled',
+      animations: "disabled",
     });
   }
   async function check(page: Page, label: string) {
@@ -380,7 +388,15 @@ try {
           .evaluate(async (img) => {
             await (img as HTMLImageElement).decode();
           });
-        await wait(async()=>dmPage.locator('[aria-label="Приватний перегляд матеріалу"] .director-fade').evaluate(el=>Number(getComputedStyle(el).opacity)===1),'Director fade fully visible for screenshot');
+        await wait(
+          async () =>
+            dmPage
+              .locator(
+                '[aria-label="Приватний перегляд матеріалу"] .director-fade',
+              )
+              .evaluate((el) => Number(getComputedStyle(el).opacity) === 1),
+          "Director fade fully visible for screenshot",
+        );
       }
       if (name === "Maps") {
         await dmPage
@@ -484,7 +500,9 @@ try {
       fogBefore,
     "real Fog brush saved",
   );
-  await dmPage.getByLabel("Інструмент туману", { exact: true }).selectOption("camera");
+  await dmPage
+    .getByLabel("Інструмент туману", { exact: true })
+    .selectOption("camera");
   await nav(dmPage, "Director");
   await dmPage
     .getByRole("button", { name: "Обрати «Таємниця храму»", exact: true })
