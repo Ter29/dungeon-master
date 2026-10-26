@@ -8,7 +8,7 @@ import type {Prisma} from '../generated/prisma/client.js';
 import {sessionUser} from '../auth/router.js';
 import {appOrigin} from '../config/app.js';
 import {SceneError} from '../scenes/state.js';
-import {MAX_IMAGE_BYTES,storageAvailable,normalizeImage,uploadImage,readImage,cleanupMedia} from '../scenes/storage.js';
+import {imageUploadSlot as uploadSlot,MAX_IMAGE_BYTES,storageAvailable,normalizeImage,uploadImage,readImage,cleanupMedia} from '../scenes/storage.js';
 import {cartographyEvents,mapSummary,elementView,fragmentView,permittedElement} from './state.js';
 
 export const cartographyRouter=Router({mergeParams:true});
@@ -96,8 +96,6 @@ cartographyRouter.delete('/fragments/:fragmentId',dm,limit,async(req,res)=>{
  const data=parse(z.object({revision}).strict(),req.body);const image=await locked(res.locals.campaignId,async tx=>{const f=await fragmentAccess(tx,res.locals.campaignId,req.params.fragmentId,'DM',data.revision);await bumpFragmentMaps(tx,f.id);await tx.mapFragment.delete({where:{id:f.id}});if(f.imageId)await tx.mediaFile.update({where:{id:f.imageId},data:{deletedAt:new Date()}});return f.imageId;});notify(res.locals.campaignId);res.status(204).end();if(image)void cleanupMedia(image).catch(()=>{});
 });
 // Reuse the authenticated Cloudinary pipeline and tombstone cleanup strategy.
-let uploading=false;
-const uploadSlot:RequestHandler=(_req,res,next)=>{if(!storageAvailable())throw new SceneError(503,'Сховище зображень ще не налаштовано.');if(uploading)throw new SceneError(429,'Інше зображення ще завантажується.');uploading=true;let released=false;const release=()=>{if(!released){released=true;uploading=false;}};res.once('finish',release);res.once('close',release);next();};
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:MAX_IMAGE_BYTES,files:1,fields:1,fieldSize:32,parts:2},fileFilter:(_req,file,done)=>{if(!['image/png','image/jpeg'].includes(file.mimetype))done(new SceneError(415,'Дозволено лише PNG/JPG.'));else done(null,true);}});
 for(const kind of ['maps','fragments'] as const){
  const isMap=kind==='maps',path=isMap?'/maps/:objectId/background':'/fragments/:objectId/image';

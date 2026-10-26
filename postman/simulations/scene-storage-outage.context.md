@@ -31,6 +31,7 @@ The test starts the real built app, injects fake Cloudinary credentials and a te
 - 2026-10-26: Cloudinary member received POST upload and GET download, both returned 503. The application retained its previous background, revision and location version, and left a pending media record for cleanup. No member stayed silent. Real Cloudinary tests separately passed authenticated upload/download and unsigned-access denial.
 - 2026-10-26 Sprint 2.4: new map-background and fragment-image uploads also reached the same member and returned 503. Existing map background/revision/dataVersion were retained; incomplete fragment stayed private with no image. Three pending assets were cleanup-retryable. Only fake test credentials were used.
 <!-- end observations -->
+- 2026-10-26 Sprint 3.2: Director image upload also returned 503. Private draft retained image=null/revision=0 and campaign retained TABLE/null/version=0; four upload tombstones remained retryable. Four POST uploads and one GET download were observed, all 503, using fake credentials only.
 
 ## What didn't work
 

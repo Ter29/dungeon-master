@@ -1,3 +1,4 @@
+import {directorRouter} from './director/router.js';
 import {combatRouter} from './combat/router.js';
 import {cartographyRouter} from './cartography/router.js';
 import express from 'express';
@@ -25,6 +26,7 @@ app.use((_req, res, next) => {
 });
 app.use(express.json({ limit: '100kb' }));
 app.use('/api/auth', authRouter);
+app.use('/api/campaigns/:campaignId/director',directorRouter);
 app.use('/api/campaigns/:campaignId/combat',combatRouter);
 app.use('/api/campaigns/:campaignId/cartography',cartographyRouter);
 app.use('/api/campaigns/:campaignId/locations', sceneRouter);

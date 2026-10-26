@@ -7,3 +7,5 @@ export type {FogState,FogPoint,FogOperation} from './fog.js';
 export type {CartographyPoint,MapFragmentView,MapElementView,SharedMapSummary,SharedMapView,CartographyCatalog} from './events/cartography.js';
 
 export type {CombatSnapshot,CombatEncounterView,CombatParticipantView} from './events/combat.js';
+
+export type {DisplayMode,PresentationCategory,PresentationMaterialView,DirectorSnapshot,DirectorLibrary} from './events/director.js';

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 const client = new Client({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL, connectionTimeoutMillis: 15000 });
 const schema = `scene_rehearsal_${randomUUID().replaceAll('-', '')}`;
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
-let tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite', 'MediaFile', 'Scene', 'Token', 'SharedMap', 'MapFragment', 'MapElement', 'CombatEncounter', 'CombatParticipant', '_prisma_migrations'];
+let tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite', 'MediaFile', 'Scene', 'Token', 'SharedMap', 'MapFragment', 'MapElement', 'CombatEncounter', 'CombatParticipant', 'PresentationMaterial', '_prisma_migrations'];
 const data: Record<string, Record<string, unknown>[]> = {};
 const canonical = (rows: unknown[]) => JSON.stringify(rows.map(row => JSON.stringify(row)).sort());
 let created = false;
@@ -42,11 +42,12 @@ try {
     step = `restore ${table}`;
     for (const row of saved.data[table]!) {
       const columns = Object.keys(row);
-      await client.query(`INSERT INTO ${quote(schema)}.${quote(table)} (${columns.map(quote).join(',')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(',')})`, columns.map(column => table==='Campaign'&&column==='activeLocationId'?null:table==='CombatEncounter'&&column==='currentParticipantId'?null:table==='MapElement'&&column==='points'?JSON.stringify(row[column]):row[column]));
+      await client.query(`INSERT INTO ${quote(schema)}.${quote(table)} (${columns.map(quote).join(',')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(',')})`, columns.map(column => table==='Campaign'&&['activeLocationId','presentationMaterialId'].includes(column)?null:table==='CombatEncounter'&&column==='currentParticipantId'?null:table==='MapElement'&&column==='points'?JSON.stringify(row[column]):row[column]));
     }
   }
   for(const row of data.Campaign??[]) if(row.activeLocationId) await client.query(`UPDATE ${quote(schema)}."Campaign" SET "activeLocationId"=$1 WHERE id=$2`,[row.activeLocationId,row.id]);
   for(const row of data.CombatEncounter??[]) if(row.currentParticipantId) await client.query(`UPDATE ${quote(schema)}."CombatEncounter" SET "currentParticipantId"=$1 WHERE id=$2`,[row.currentParticipantId,row.id]);
+  for(const row of data.Campaign??[]) if(row.presentationMaterialId) await client.query(`UPDATE ${quote(schema)}."Campaign" SET "presentationMaterialId"=$1 WHERE id=$2`,[row.presentationMaterialId,row.id]);
   for (const name of Object.keys(sql).filter(name => !applied.has(name)).sort()) {
     step = `migrate ${name}`;
     assert.ok(!/(^|;)\s*(DROP|TRUNCATE|DELETE)\b/im.test(sql[name]!.replace(/^--.*$/gm, '')), 'Migration must be additive');

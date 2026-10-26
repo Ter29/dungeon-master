@@ -1,3 +1,4 @@
+import {CinematicDirector} from '../director/CinematicDirector';
 import {Cartography} from '../cartography/Cartography';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
@@ -10,6 +11,7 @@ type Details = Campaign & { members: { userId: string; displayName: string; role
 type Invite = { id: string; expiresAt: string; revokedAt: string | null };
 export function CampaignPage() {
   const [tab,setTab]=useState('table');
+  const [mapsVisited,setMapsVisited]=useState(false);
   const { id } = useParams();
   const [campaign, setCampaign] = useState<Details | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -47,9 +49,10 @@ export function CampaignPage() {
     <button disabled={busy || loading} onClick={() => void load()}>Оновити</button>
     {loading ? <p role="status">Завантаження…</p> : campaign && <>
       <h2>{campaign.name}</h2><p>Ваша роль: {campaign.role === 'DM' ? 'DM' : 'Гравець'}</p>
-      <div role="tablist" aria-label="Розділи кампанії"><button role="tab" aria-selected={tab==='table'} onClick={()=>setTab('table')}>Ігровий стіл</button><button role="tab" aria-selected={tab==='maps'} onClick={()=>setTab('maps')}>Карти</button></div>
+      <CinematicDirector key={`director-${campaign.id}`} campaignId={campaign.id} dm={campaign.role==='DM'} onTable={()=>setTab('table')}>
+      <div role="tablist" aria-label="Розділи кампанії"><button role="tab" aria-selected={tab==='table'} onClick={()=>setTab('table')}>Ігровий стіл</button><button role="tab" aria-selected={tab==='maps'} onClick={()=>{setMapsVisited(true);setTab('maps');}}>Карти</button></div>
       <div role="tabpanel" hidden={tab!=='table'}><LocationTable key={campaign.id} campaignId={campaign.id} role={campaign.role} /></div>
-      {tab==='maps'&&<div role="tabpanel"><Cartography key={campaign.id} campaignId={campaign.id} dm={campaign.role==='DM'}/></div>}
+      {mapsVisited&&<div role="tabpanel" hidden={tab!=='maps'}><Cartography key={campaign.id} campaignId={campaign.id} dm={campaign.role==='DM'}/></div>}
       <details><summary>Тестовий стіл Sprint 1</summary><Room key={campaign.id} campaignId={campaign.id} role={campaign.role} /></details>
       {campaign.role === 'DM' && <div><h3>Запрошення</h3>
         <button disabled={busy} onClick={() => void createInvite()}>Створити посилання на 7 днів</button>
@@ -59,6 +62,7 @@ export function CampaignPage() {
           {!invite.revokedAt && new Date(invite.expiresAt) > new Date() && <button disabled={busy} onClick={() => void revoke(invite.id)}>Відкликати</button>}
         </li>)}</ul>
       </div>}
+      </CinematicDirector>
     </>}
   </section>;
 }

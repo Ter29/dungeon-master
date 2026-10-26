@@ -1,9 +1,18 @@
+import type {RequestHandler} from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import sharp from 'sharp';
 import { prisma } from '../database/client.js';
 import { SceneError } from './state.js';
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// One shared multipart image slot across scenes, cartography and director.
+let imageUploading=false;
+export const imageUploadSlot:RequestHandler=(_req,res,next)=>{
+ if(!storageAvailable())throw new SceneError(503,'Сховище зображень ще не налаштовано.');
+ if(imageUploading)throw new SceneError(429,'Інше зображення ще завантажується. Спробуйте за кілька секунд.');
+ imageUploading=true;let released=false;const release=()=>{if(!released){released=true;imageUploading=false;}};
+ res.once('finish',release);res.once('close',release);next();
+};
 sharp.concurrency(1);
 sharp.cache({ memory: 16, files: 0, items: 20 });
 export function storageAvailable() { return Boolean(process.env.CLOUDINARY_URL); }

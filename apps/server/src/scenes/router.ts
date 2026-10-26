@@ -9,7 +9,7 @@ import { sessionUser } from '../auth/router.js';
 import { appOrigin } from '../config/app.js';
 import { SceneError, activeSnapshot, locationEvents, sceneView, tokenView, playerCanSeeToken } from './state.js';
 import {applyFog,FOG_HEX_LENGTH} from '@dnd/shared';
-import { MAX_IMAGE_BYTES, cleanupMedia, normalizeImage, readImage, storageAvailable, uploadImage } from './storage.js';
+import { imageUploadSlot, MAX_IMAGE_BYTES, cleanupMedia, normalizeImage, readImage, storageAvailable, uploadImage } from './storage.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
 export const sceneRouter = Router({ mergeParams: true });
@@ -114,17 +114,7 @@ sceneRouter.delete('/:sceneId', dm, validScene, limit, async (req, res) => {
   for(const id of oldId) void cleanupMedia(id).catch(() => {});
 });
 
-let uploading = false;
-const uploadSlot: RequestHandler = async (_req, res, next) => {
-  if (!storageAvailable()) throw new SceneError(503, 'Сховище зображень ще не налаштовано.');
-  if (uploading) throw new SceneError(429, 'Інше зображення ще завантажується. Спробуйте за кілька секунд.');
-  await currentScene(prisma, res.locals.campaignId, res.locals.sceneId);
-  if (uploading) throw new SceneError(429, 'Інше зображення ще завантажується.');
-  uploading = true;
-  let released = false;
-  const release = () => { if (!released) { released = true; uploading = false; } };
-  res.once('finish', release); res.once('close', release); next();
-};
+const uploadSlot:RequestHandler=async(req,res,next)=>{await currentScene(prisma,res.locals.campaignId,res.locals.sceneId);imageUploadSlot(req,res,next);};
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_BYTES, files: 1, fields: 1, fieldSize: 32, parts: 2 },
   fileFilter: (_req, file, callback) => {
     if (!['image/png', 'image/jpeg'].includes(file.mimetype)) callback(new SceneError(415, 'Дозволено лише PNG/JPG.'));

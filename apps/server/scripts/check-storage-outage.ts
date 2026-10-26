@@ -41,6 +41,13 @@ try {
   const retained=await prisma.sharedMap.findUniqueOrThrow({where:{id:map.id}});assert.equal(retained.backgroundId,oldMapMedia.id);assert.equal(retained.revision,0);assert.equal(retained.dataVersion,0);
   const incomplete=await prisma.mapFragment.findUniqueOrThrow({where:{id:fragment.id}});assert.equal(incomplete.issued,false);assert.equal(incomplete.imageId,null);
   assert.equal(await prisma.mediaFile.count({where:{campaignId,deletedAt:{not:null}}}),3);
+  const presentation=await prisma.presentationMaterial.create({data:{campaignId,name:'Preserve private presentation',category:'NPC'}});
+  const presentationForm=new FormData();presentationForm.set('revision','0');presentationForm.set('file',new Blob([new Uint8Array(file)],{type:'image/png'}),'portrait.png');
+  const presentationResponse=await fetch('http://127.0.0.1:3107/api/campaigns/'+campaignId+'/director/materials/'+presentation.id+'/image',{method:'POST',headers,body:presentationForm});assert.equal(presentationResponse.status,503);
+  const presentationSaved=await prisma.presentationMaterial.findUniqueOrThrow({where:{id:presentation.id}});assert.equal(presentationSaved.imageId,null);assert.equal(presentationSaved.revision,0);
+  const presentationState=await prisma.campaign.findUniqueOrThrow({where:{id:campaignId}});assert.equal(presentationState.presentationMode,'TABLE');assert.equal(presentationState.presentationMaterialId,null);assert.equal(presentationState.presentationVersion,0);
+  assert.equal(await prisma.mediaFile.count({where:{campaignId,deletedAt:{not:null}}}),4);
+  console.log('PASS Director outage: real SDK upload reached simulation; failed image remains private, version/mode/gameplay retained and media retryable.');
   console.log('PASS Cartography outage: map background/version retained; failed fragment upload remains private and unissued; pending media stays retryable.');
   console.log('PASS: real app + Cloudinary SDK through Postman outage simulation returns safe 503; old background/revision/state retained; pending asset remains cleanup-retryable.');
 } catch (error) { console.error('FAIL: storage outage check', error instanceof assert.AssertionError ? error.message : 'request/setup error'); process.exitCode = 1; }
