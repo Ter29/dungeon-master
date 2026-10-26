@@ -1,0 +1,12 @@
+node_modules/
+apps/server/src/generated/
+.npm-cache/
+dist/
+build/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

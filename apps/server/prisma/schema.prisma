@@ -1,0 +1,77 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CampaignRole {
+  DM
+  PLAYER
+}
+
+model User {
+  id           String           @id @default(uuid()) @db.Uuid
+  email        String           @unique @db.VarChar(254)
+  displayName  String           @db.VarChar(80)
+  passwordHash String
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime         @updatedAt @db.Timestamptz(3)
+  sessions     Session[]
+  memberships  CampaignMember[]
+  invites      Invite[]
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique @db.VarChar(64)
+  userId    String   @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Campaign {
+  id        String           @id @default(uuid()) @db.Uuid
+  name      String           @db.VarChar(120)
+  version   Int              @default(0)
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @db.Timestamptz(3)
+  members   CampaignMember[]
+  invites   Invite[]
+}
+
+model CampaignMember {
+  campaignId String       @db.Uuid
+  userId     String       @db.Uuid
+  role       CampaignRole @default(PLAYER)
+  joinedAt   DateTime     @default(now()) @db.Timestamptz(3)
+  campaign   Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id          String    @id @default(uuid()) @db.Uuid
+  codeHash    String    @unique @db.VarChar(64)
+  campaignId  String    @db.Uuid
+  createdById String    @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt   DateTime  @db.Timestamptz(3)
+  revokedAt   DateTime? @db.Timestamptz(3)
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([createdById])
+  @@index([expiresAt])
+}
