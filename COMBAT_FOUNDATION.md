@@ -62,4 +62,17 @@ Implementation, verification and deployment evidence will follow.
 
 This is initiative/turn tracking, not combat automation: no speed, movement requests, attacks, HP, dice, lighting or new Fog rules. Previous follows the current order rather than a historical undo log. Completed encounters are persisted but no history browser is introduced. Scene deletion intentionally removes its combat records, as the UI confirmation states.
 
-The existing single Node/Socket.IO process remains the supported runtime. No new dependencies, service, storage provider, secret or domain is required. Target: https://dungeon-master-tvra.onrender.com, existing Render service `srv-dbfb4l8m7kps738e51c0` in the previously confirmed My Workspace. Public deployment/tests pending at document creation. Four concurrent automated clients do not constitute four physical PCs.
+The existing single Node/Socket.IO process remains the supported runtime. No new dependencies, service, storage provider, secret or domain is required. Target: https://dungeon-master-tvra.onrender.com, existing Render service `srv-dbfb4l8m7kps738e51c0` in the previously confirmed My Workspace. Runtime commit `bb8ec00f4c0374b14bb91d24216e06388d2f9186`, deployment `dep-dbfmb40u01pc73bpq3t0`: **live** (2026-10-26 15:38, Europe/Warsaw). Four concurrent automated clients do not constitute four physical PCs.
+
+
+Final public verification:
+
+- `npm run test:combat -w @dnd/server -- https://dungeon-master-tvra.onrender.com`: PASS public HTTPS/WSS DM + 3 Players; all encounter/initiative/turn/visibility/permission/concurrency cases, reconnect, unique open encounter and participant quota.
+- `npm run test:live -w @dnd/server`: PASS real registration/login/invitation, secure cookies/certificate, DM + 3 Players, original room/token/scene sync and reconnect.
+- `npm run test:fog -w @dnd/server -- https://dungeon-master-tvra.onrender.com`: PASS prior Fog and token/image privacy on the new runtime.
+- `npm run test:cartography -w @dnd/server -- https://dungeon-master-tvra.onrender.com`: PASS shared maps, concurrent elements, issued/private fragments, image access and reconnect.
+- Explicit public comparison: pre-deployment CombatSnapshot exactly matches after the Render process replacement, including round 3, active Aria, initiative ties, order, versions and all four DM participants. Existing Token positions/hidden flags unchanged; PNG available. Player API contains only Aria/Goblin/Borin, contiguous order 0/1/2, and no hidden Token/participant IDs or name.
+- Browser using a separate Player account: three permitted roster rows and three map tokens; Hidden scout absent from the page; zero Next/Previous/Skip buttons. Screenshot saved privately as `.backups/combat-player-public.png`.
+- Eight migrations are up to date. Render error-level application-log query after rollout returned no entries.
+
+All automated test fixtures/provider images were removed. Separate DM/Player browser fixtures are removed after screenshots. Existing campaigns are untouched. The initial no-op-transition failure was corrected and all final checks passed. No unverified production deployment or required implementation work remains; four physical PCs remain a human playtest beyond the independent automated clients.
