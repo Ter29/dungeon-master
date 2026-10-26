@@ -3,6 +3,7 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import sharp from 'sharp';
+import {wav} from './audio-fixture.js';
 import { prisma } from '../src/database/client.js';
 
 const id = randomUUID(), campaignId = randomUUID(), token = randomBytes(32).toString('base64url');
@@ -47,6 +48,10 @@ try {
   const presentationSaved=await prisma.presentationMaterial.findUniqueOrThrow({where:{id:presentation.id}});assert.equal(presentationSaved.imageId,null);assert.equal(presentationSaved.revision,0);
   const presentationState=await prisma.campaign.findUniqueOrThrow({where:{id:campaignId}});assert.equal(presentationState.presentationMode,'TABLE');assert.equal(presentationState.presentationMaterialId,null);assert.equal(presentationState.presentationVersion,0);
   assert.equal(await prisma.mediaFile.count({where:{campaignId,deletedAt:{not:null}}}),4);
+  const audioForm=new FormData();audioForm.set('name','Private failed audio');audioForm.set('category','MUSIC');audioForm.set('file',new Blob([new Uint8Array(wav())],{type:'audio/wav'}),'tone.wav');
+  const audioResponse=await fetch('http://127.0.0.1:3107/api/campaigns/'+campaignId+'/audio/assets',{method:'POST',headers,body:audioForm});assert.equal(audioResponse.status,503);
+  assert.equal(await prisma.audioAsset.count({where:{campaignId,deletedAt:null}}),0);assert.equal(await prisma.audioAsset.count({where:{campaignId,deletedAt:{not:null}}}),1);assert.equal((await prisma.campaign.findUniqueOrThrow({where:{id:campaignId}})).audioVersion,0);assert.equal(await prisma.audioChannel.count({where:{campaignId}}),0);
+  console.log('PASS Audio outage: real video upload SDK reached simulation; private tombstone only, no channel/global state changed.');
   console.log('PASS Director outage: real SDK upload reached simulation; failed image remains private, version/mode/gameplay retained and media retryable.');
   console.log('PASS Cartography outage: map background/version retained; failed fragment upload remains private and unissued; pending media stays retryable.');
   console.log('PASS: real app + Cloudinary SDK through Postman outage simulation returns safe 503; old background/revision/state retained; pending asset remains cleanup-retryable.');

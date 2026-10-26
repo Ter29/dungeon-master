@@ -1,0 +1,82 @@
+.audio-personal {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1100;
+  background: #15191f;
+  color: #f5f2ea;
+  border: 1px solid #717987;
+  border-radius: 8px;
+  padding: 10px;
+  max-width: min(350px, 85vw);
+  max-height: 70vh;
+  overflow: auto;
+  box-shadow: 0 4px 18px #0007;
+}
+.audio-personal summary {
+  cursor: pointer;
+}
+.audio-personal p {
+  font-size: 0.85rem;
+}
+.audio-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.audio-volume input {
+  min-width: 60px;
+  flex: 1;
+}
+.audio-volume output {
+  min-width: 38px;
+}
+.audio-dashboard {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #8a8f98;
+  border-radius: 6px;
+}
+.audio-channels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+}
+.audio-channel {
+  padding: 12px;
+  border: 1px solid #969ba3;
+  border-radius: 6px;
+}
+.audio-channel button,
+.audio-channel label {
+  margin: 4px;
+}
+.audio-channel select {
+  max-width: 100%;
+}
+.audio-channel input[type="number"] {
+  width: 65px;
+}
+.audio-sfx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.audio-library {
+  list-style: none;
+  padding: 0;
+}
+.audio-library li {
+  padding: 12px;
+  border-bottom: 1px solid #999;
+}
+.audio-dashboard form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.audio-dashboard audio {
+  width: min(100%, 400px);
+}

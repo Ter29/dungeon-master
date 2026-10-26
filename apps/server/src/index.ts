@@ -26,6 +26,7 @@ app.use((_req, res, next) => {
 });
 app.use(express.json({ limit: '100kb' }));
 app.use('/api/auth', authRouter);
+app.use('/api/campaigns/:campaignId/audio',audioRouter);
 app.use('/api/campaigns/:campaignId/director',directorRouter);
 app.use('/api/campaigns/:campaignId/combat',combatRouter);
 app.use('/api/campaigns/:campaignId/cartography',cartographyRouter);
@@ -82,3 +83,4 @@ function shutdown() {
 }
 process.once('SIGINT', shutdown);
 process.once('SIGTERM', shutdown);
+import {audioRouter} from './audio/router.js';

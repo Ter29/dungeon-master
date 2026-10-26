@@ -13,7 +13,7 @@ const backup = JSON.parse(bytes) as { format: string; data: Record<string, Recor
 assert.ok(['scene-foundation-v1','table-foundation-v2'].includes(backup.format));
 const schema = `scene_recovery_${randomUUID().replaceAll('-', '')}`;
 const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
-const tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite','MediaFile','Scene','Token', 'SharedMap', 'MapFragment', 'MapElement', 'CombatEncounter', 'CombatParticipant', 'PresentationMaterial', '_prisma_migrations'].filter(table=>backup.data[table]);
+const tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite','MediaFile','Scene','Token', 'SharedMap', 'MapFragment', 'MapElement', 'CombatEncounter', 'CombatParticipant', 'PresentationMaterial', 'AudioAsset', 'AudioChannel', 'AudioCue', '_prisma_migrations'].filter(table=>backup.data[table]);
 assert.ok(Object.keys(backup.data).every(table=>tables.includes(table)), 'Backup contains an unrecognized table; extend the recovery order first');
 const client = new Client({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL });
 try {

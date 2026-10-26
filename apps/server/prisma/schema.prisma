@@ -39,6 +39,10 @@ model Session {
 }
 
 model Campaign {
+  audioVersion           Int                    @default(0)
+  audioAssets            AudioAsset[]
+  audioChannels          AudioChannel[]
+  audioCues              AudioCue[]
   presentationMode       DisplayMode            @default(TABLE)
   presentationMaterialId String?                @db.Uuid
   presentationVersion    Int                    @default(0)
@@ -61,6 +65,76 @@ model Campaign {
   activeLocationId       String?                @db.Uuid
   activeLocation         Scene?                 @relation("ActiveLocation", fields: [activeLocationId], references: [id], onDelete: SetNull)
   locationVersion        Int                    @default(0)
+}
+
+enum AudioCategory {
+  MUSIC
+  AMBIENCE
+  SFX
+}
+
+enum AudioStatus {
+  PLAYING
+  PAUSED
+  STOPPED
+}
+
+model AudioAsset {
+  id          String @id @default(uuid()) @db.Uuid
+  campaignId  String @db.Uuid
+  name        String @db.VarChar(120)
+  description String @default("") @db.VarChar(2000)
+  category    AudioCategory
+  storageKey  String @unique
+  format      String @db.VarChar(4)
+  mimeType    String @db.VarChar(32)
+  byteSize    Int
+  duration    Float
+  revision    Int @default(0)
+  deletedAt   DateTime? @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  channels    AudioChannel[] @relation("AudioCurrent")
+  outgoing    AudioChannel[] @relation("AudioOutgoing")
+  cues        AudioCue[]
+  @@index([campaignId])
+  @@index([deletedAt])
+}
+
+model AudioChannel {
+  campaignId String @db.Uuid
+  key        String @db.VarChar(24)
+  assetId    String? @db.Uuid
+  status     AudioStatus @default(STOPPED)
+  position   Float @default(0)
+  startedAt  DateTime? @db.Timestamptz(3)
+  loop       Boolean @default(true)
+  volume     Float @default(1)
+  fadeFrom   Float @default(1)
+  fadeTo     Float @default(1)
+  fadeAt     DateTime? @db.Timestamptz(3)
+  fadeMs     Int @default(0)
+  outgoingAssetId String? @db.Uuid
+  outgoingPosition Float @default(0)
+  outgoingStartedAt DateTime? @db.Timestamptz(3)
+  outgoingLoop Boolean @default(false)
+  outgoingGain Float @default(1)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  asset AudioAsset? @relation("AudioCurrent", fields: [assetId], references: [id], onDelete: SetNull)
+  outgoingAsset AudioAsset? @relation("AudioOutgoing", fields: [outgoingAssetId], references: [id], onDelete: SetNull)
+  @@id([campaignId, key])
+}
+
+model AudioCue {
+  id String @id @default(uuid()) @db.Uuid
+  campaignId String @db.Uuid
+  assetId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  asset AudioAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  @@index([campaignId, createdAt])
+  @@index([expiresAt])
 }
 
 model CampaignMember {

@@ -77,6 +77,19 @@ export function createRooms(server: HttpServer) {
     }
   }
   const onDirectorChanged=(id:string,library=false)=>{void enqueue(id,()=>publishDirector(id,library)).catch(()=>{io.to(roomName(id)).emit('room:error','Не вдалося оновити подачу. Перепідключіться.');});};
+  async function publishAudio(id:string,library=false){const state=await audioSnapshot(id);for(const socket of io.sockets.sockets.values()){if(!socket.rooms.has(roomName(id)))continue;try{const member=await authorize(socket);socket.emit('audio:snapshot',state);if(library&&member.role==='DM')socket.emit('audio:library-changed');}catch{socket.disconnect(true);}}}
+  // Initial/sync state belongs to the requester. Do not rebroadcast every subsystem
+  // to all existing sockets on every join (quadratic authorization/database work).
+  async function syncParticipant(socket:RoomSocket){
+    const member=await authorize(socket),id=socket.data.campaignId;
+    const [location,combat,director,audio]=await Promise.all([activeSnapshot(id,member.role),combatSnapshots(id),directorSnapshot(id),audioSnapshot(id)]);
+    const current=await authorize(socket);if(current.role!==member.role){socket.disconnect(true);return;}
+    socket.emit('location:snapshot',location);socket.emit('combat:snapshot',combat[current.role]);socket.emit('director:snapshot',director);socket.emit('audio:snapshot',audio);
+  }
+  const onAudioChanged=(id:string,library=false)=>{void enqueue(id,()=>publishAudio(id,library)).catch(()=>io.to(roomName(id)).emit('room:error','Не вдалося оновити звук.'));};
+  const onAudioCue=(id:string,cue:AudioCueView)=>{void enqueue(id,async()=>{if(Date.now()>cue.at+3000)return;for(const socket of io.sockets.sockets.values()){if(!socket.rooms.has(roomName(id)))continue;try{await authorize(socket);socket.emit('audio:cue',cue);}catch{socket.disconnect(true);}}}).catch(()=>{});};
+  audioEvents.on('changed',onAudioChanged);audioEvents.on('cue',onAudioCue);
+  io.engine.once('close',()=>{audioEvents.off('changed',onAudioChanged);audioEvents.off('cue',onAudioCue);});
   directorEvents.on('changed',onDirectorChanged);
   io.engine.once('close',()=>directorEvents.off('changed',onDirectorChanged));
   const onCombatChanged=(id:string)=>{void enqueue(id,()=>publishCombat(id)).catch(()=>{io.to(roomName(id)).emit('room:error','Не вдалося оновити бій. Перепідключіться.');});};
@@ -115,9 +128,7 @@ export function createRooms(server: HttpServer) {
       await authorize(socket);
       await socket.join(roomName(id));
       await snapshot(id);
-      await publishLocation(id);
-      await publishCombat(id);
-      await publishDirector(id);
+      await syncParticipant(socket);
     }).catch(() => { socket.emit('room:error', 'Не вдалося завантажити кімнату.'); socket.disconnect(true); });
     function command(ack: unknown, task: () => Promise<void>) {
       if (typeof ack !== 'function') return;
@@ -139,7 +150,7 @@ export function createRooms(server: HttpServer) {
       await snapshot(id);
       if (!result.count) throw new PublicError('Стан уже змінився. Оновлено до останньої версії; повторіть дію.');
     }
-    socket.on('room:sync', ack => command(ack, async () => { await authorize(socket); await snapshot(id); await publishLocation(id); await publishCombat(id); await publishDirector(id); }));
+    socket.on('room:sync', ack => command(ack, async () => { await authorize(socket); await snapshot(id); await syncParticipant(socket); }));
     socket.on('location:ping', (data, ack) => command(ack, async () => {
       const parsed = z.object({sceneId:z.string().uuid(),x:z.number().min(0).max(100000),y:z.number().min(0).max(100000)}).safeParse(data);
       if(!parsed.success) throw new PublicError('Некоректний пінг.');
@@ -171,3 +182,5 @@ export function createRooms(server: HttpServer) {
   return io;
 }
 class PublicError extends Error {}
+import {audioEvents,audioSnapshot} from '../audio/state.js';
+import type {AudioCueView} from '@dnd/shared';

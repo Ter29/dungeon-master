@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 const client = new Client({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL, connectionTimeoutMillis: 15000 });
 const schema = `scene_rehearsal_${randomUUID().replaceAll('-', '')}`;
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
-let tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite', 'MediaFile', 'Scene', 'Token', 'SharedMap', 'MapFragment', 'MapElement', 'CombatEncounter', 'CombatParticipant', 'PresentationMaterial', '_prisma_migrations'];
+let tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite', 'MediaFile', 'Scene', 'Token', 'SharedMap', 'MapFragment', 'MapElement', 'CombatEncounter', 'CombatParticipant', 'PresentationMaterial', 'AudioAsset', 'AudioChannel', 'AudioCue', '_prisma_migrations'];
 const data: Record<string, Record<string, unknown>[]> = {};
 const canonical = (rows: unknown[]) => JSON.stringify(rows.map(row => JSON.stringify(row)).sort());
 let created = false;

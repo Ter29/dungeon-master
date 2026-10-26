@@ -16,7 +16,7 @@ export const imageUploadSlot:RequestHandler=(_req,res,next)=>{
 sharp.concurrency(1);
 sharp.cache({ memory: 16, files: 0, items: 20 });
 export function storageAvailable() { return Boolean(process.env.CLOUDINARY_URL); }
-function configure() {
+export function configure() {
   if (!storageAvailable()) throw new SceneError(503, 'Сховище зображень ще не налаштовано.');
   const url = new URL(process.env.CLOUDINARY_URL!);
   if (url.protocol !== 'cloudinary:' || !url.hostname || !url.username || !url.password) throw new SceneError(503, 'Сховище зображень налаштовано некоректно.');

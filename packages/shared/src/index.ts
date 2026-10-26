@@ -9,3 +9,4 @@ export type {CartographyPoint,MapFragmentView,MapElementView,SharedMapSummary,Sh
 export type {CombatSnapshot,CombatEncounterView,CombatParticipantView} from './events/combat.js';
 
 export type {DisplayMode,PresentationCategory,PresentationMaterialView,DirectorSnapshot,DirectorLibrary} from './events/director.js';
+export * from './events/audio.js';

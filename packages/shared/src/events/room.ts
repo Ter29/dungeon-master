@@ -13,6 +13,9 @@ export interface ClientEvents {
   'player:ping': (data: Point, ack: (reply: Reply) => void) => void;
 }
 export interface ServerEvents {
+  'audio:snapshot': (snapshot:import('./audio.js').AudioSnapshot) => void;
+  'audio:cue': (cue:import('./audio.js').AudioCueView) => void;
+  'audio:library-changed': () => void;
   'director:snapshot': (snapshot:import('./director.js').DirectorSnapshot) => void;
   'director:library-changed': () => void;
   'combat:snapshot': (snapshot:import('./combat.js').CombatSnapshot) => void;
