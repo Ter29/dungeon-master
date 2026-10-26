@@ -4,3 +4,4 @@ export type { LocationBackground, LocationView, LocationSnapshot } from './event
 export type { TokenView, GridSettings, LocationPing } from './events/locations.js';
 export {FOG_SIZE,FOG_HEX_LENGTH,fogCell,tokenInOpenFog,applyFog} from './fog.js';
 export type {FogState,FogPoint,FogOperation} from './fog.js';
+export type {CartographyPoint,MapFragmentView,MapElementView,SharedMapSummary,SharedMapView,CartographyCatalog} from './events/cartography.js';

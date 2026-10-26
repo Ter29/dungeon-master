@@ -30,6 +30,18 @@ try {
   assert.equal(await prisma.mediaFile.count({ where: { campaignId, deletedAt: { not: null } } }), 1);
   const read = await fetch(`${base}/${scene.id}/background/${media.id}`, { headers }); assert.equal(read.status, 503);
   const body = JSON.stringify(await read.json()); assert.ok(!body.includes('fake') && !body.includes('signature'));
+  const map=await prisma.sharedMap.create({data:{campaignId,name:'Preserve map background',backgroundId:null}});
+  const oldMapMedia=await prisma.mediaFile.create({data:{campaignId,storageKey:'simulated/'+randomUUID(),format:'png',mimeType:'image/png',byteSize:10,width:10,height:10}});
+  await prisma.sharedMap.update({where:{id:map.id},data:{backgroundId:oldMapMedia.id}});
+  const fragment=await prisma.mapFragment.create({data:{campaignId,name:'Private incomplete fragment'}});
+  for(const path of ['maps/'+map.id+'/background','fragments/'+fragment.id+'/image']){
+    const body=new FormData();body.set('revision','0');body.set('file',new Blob([new Uint8Array(file)],{type:'image/png'}),'image.png');
+    const response=await fetch('http://127.0.0.1:3107/api/campaigns/'+campaignId+'/cartography/'+path,{method:'POST',headers,body});assert.equal(response.status,503);
+  }
+  const retained=await prisma.sharedMap.findUniqueOrThrow({where:{id:map.id}});assert.equal(retained.backgroundId,oldMapMedia.id);assert.equal(retained.revision,0);assert.equal(retained.dataVersion,0);
+  const incomplete=await prisma.mapFragment.findUniqueOrThrow({where:{id:fragment.id}});assert.equal(incomplete.issued,false);assert.equal(incomplete.imageId,null);
+  assert.equal(await prisma.mediaFile.count({where:{campaignId,deletedAt:{not:null}}}),3);
+  console.log('PASS Cartography outage: map background/version retained; failed fragment upload remains private and unissued; pending media stays retryable.');
   console.log('PASS: real app + Cloudinary SDK through Postman outage simulation returns safe 503; old background/revision/state retained; pending asset remains cleanup-retryable.');
 } catch (error) { console.error('FAIL: storage outage check', error instanceof assert.AssertionError ? error.message : 'request/setup error'); process.exitCode = 1; }
 finally {

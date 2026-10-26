@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 const client = new Client({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL, connectionTimeoutMillis: 15000 });
 const schema = `scene_rehearsal_${randomUUID().replaceAll('-', '')}`;
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
-let tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite', 'MediaFile', 'Scene', 'Token', '_prisma_migrations'];
+let tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite', 'MediaFile', 'Scene', 'Token', 'SharedMap', 'MapFragment', 'MapElement', '_prisma_migrations'];
 const data: Record<string, Record<string, unknown>[]> = {};
 const canonical = (rows: unknown[]) => JSON.stringify(rows.map(row => JSON.stringify(row)).sort());
 let created = false;
@@ -42,7 +42,7 @@ try {
     step = `restore ${table}`;
     for (const row of saved.data[table]!) {
       const columns = Object.keys(row);
-      await client.query(`INSERT INTO ${quote(schema)}.${quote(table)} (${columns.map(quote).join(',')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(',')})`, columns.map(column => table==='Campaign'&&column==='activeLocationId'?null:row[column]));
+      await client.query(`INSERT INTO ${quote(schema)}.${quote(table)} (${columns.map(quote).join(',')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(',')})`, columns.map(column => table==='Campaign'&&column==='activeLocationId'?null:table==='MapElement'&&column==='points'?JSON.stringify(row[column]):row[column]));
     }
   }
   for(const row of data.Campaign??[]) if(row.activeLocationId) await client.query(`UPDATE ${quote(schema)}."Campaign" SET "activeLocationId"=$1 WHERE id=$2`,[row.activeLocationId,row.id]);

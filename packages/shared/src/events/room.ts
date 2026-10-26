@@ -13,6 +13,7 @@ export interface ClientEvents {
   'player:ping': (data: Point, ack: (reply: Reply) => void) => void;
 }
 export interface ServerEvents {
+  'cartography:changed': () => void;
   'location:ping': (ping: import('./locations.js').LocationPing) => void;
   'location:snapshot': (snapshot: import('./locations.js').LocationSnapshot) => void;
   'locations:changed': () => void;

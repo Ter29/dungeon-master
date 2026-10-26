@@ -1,3 +1,4 @@
+import {cartographyRouter} from './cartography/router.js';
 import express from 'express';
 import { createServer } from 'node:http';
 import { createRooms } from './sockets/rooms.js';
@@ -23,6 +24,7 @@ app.use((_req, res, next) => {
 });
 app.use(express.json({ limit: '100kb' }));
 app.use('/api/auth', authRouter);
+app.use('/api/campaigns/:campaignId/cartography',cartographyRouter);
 app.use('/api/campaigns/:campaignId/locations', sceneRouter);
 app.use('/api', campaignRouter);
 

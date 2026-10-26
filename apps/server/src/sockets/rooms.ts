@@ -1,3 +1,4 @@
+import {cartographyEvents} from '../cartography/state.js';
 import type { Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Server, type Socket } from 'socket.io';
@@ -64,6 +65,9 @@ export function createRooms(server: HttpServer) {
       io.to(roomName(id)).emit('room:error', 'Не вдалося оновити локацію. Перепідключіться.');
     });
   };
+  const onCartographyChanged=(id:string)=>{void enqueue(id,async()=>{for(const socket of io.sockets.sockets.values()){if(!socket.rooms.has(roomName(id)))continue;try{await authorize(socket);socket.emit('cartography:changed');}catch{socket.disconnect(true);}}}).catch(()=>{});};
+  cartographyEvents.on('changed',onCartographyChanged);
+  io.engine.once('close',()=>cartographyEvents.off('changed',onCartographyChanged));
   locationEvents.on('changed', onLocationsChanged);
   io.engine.once('close', () => locationEvents.off('changed', onLocationsChanged));
   io.use(async (socket, next) => {
