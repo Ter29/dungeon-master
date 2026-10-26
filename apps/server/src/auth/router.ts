@@ -4,18 +4,22 @@ import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../database/client.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { sessionEvents } from './events.js';
+import { appOrigin as origin, production } from '../config/app.js';
 
-const production = process.env.NODE_ENV === 'production';
-const origin = process.env.APP_ORIGIN ?? 'http://localhost:5173';
-if (production && !process.env.APP_ORIGIN) throw new Error('APP_ORIGIN is required in production');
 const cookieName = production ? '__Host-dnd_session' : 'dnd_session';
 const cookieOptions = { httpOnly: true, secure: production, sameSite: 'lax' as const, path: '/' };
 const lifetime = 7 * 24 * 60 * 60 * 1000;
 const userSelect = { id: true, email: true, displayName: true } as const;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
-function sessionHash(req: Request) {
+export function sessionHash(req: Pick<Request, 'headers'>) {
   const value = req.headers.cookie?.split(';').map(p => p.trim()).find(p => p.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
   return value && /^[A-Za-z0-9_-]{43}$/.test(value) ? digest(value) : undefined;
+}
+export async function sessionUser(req: Request) {
+  const tokenHash = sessionHash(req);
+  const session = tokenHash ? await prisma.session.findUnique({ where: { tokenHash }, include: { user: { select: userSelect } } }) : null;
+  return session && session.expiresAt > new Date() ? session.user : null;
 }
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(12).max(128);
@@ -47,6 +51,7 @@ async function issueSession(req: Request, res: Response, userId: string) {
     await tx.session.deleteMany({ where: { userId, expiresAt: { lte: new Date() } } });
   });
   res.cookie(cookieName, token, { ...cookieOptions, maxAge: lifetime });
+  if (previousHash) sessionEvents.emit('revoke', previousHash);
 }
 
 authRouter.post('/register', limiter, async (req, res) => {
@@ -89,6 +94,7 @@ authRouter.get('/me', async (req, res) => {
 authRouter.post('/logout', async (req, res) => {
   const tokenHash = sessionHash(req);
   if (tokenHash) await prisma.session.deleteMany({ where: { tokenHash } });
+  if (tokenHash) sessionEvents.emit('revoke', tokenHash);
   res.clearCookie(cookieName, cookieOptions);
   res.status(204).end();
 });

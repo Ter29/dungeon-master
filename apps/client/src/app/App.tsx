@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { Link, Navigate, Route, Routes } from 'react-router';
 import { AuthProvider, useAuth } from '../features/auth/AuthContext';
 import { AuthPage } from '../features/auth/AuthPage';
+import { CampaignsPage } from '../features/campaigns/CampaignsPage';
+import { CampaignPage } from '../features/campaigns/CampaignPage';
+import { JoinPage } from '../features/campaigns/JoinPage';
 
 export function App() {
   return <AuthProvider><AppContent /></AuthProvider>;
@@ -30,7 +33,9 @@ function AppContent() {
         <Route path="/login" element={<AuthPage key="login" mode="login" />} />
         <Route path="/register" element={<AuthPage key="register" mode="register" />} />
         <Route path="/" element={<p>Фундамент сайту налаштовано.</p>} />
-        <Route path="/campaigns" element={auth.user ? <p>Ви ввійшли. Кампанії з’являться на наступному етапі.</p> : <Navigate to="/login" replace />} />
+        <Route path="/campaigns" element={auth.user ? <CampaignsPage key={auth.user.id} /> : <Navigate to="/login" replace />} />
+        <Route path="/campaigns/:id" element={auth.user ? <CampaignPage key={auth.user.id} /> : <Navigate to="/login" replace />} />
+        <Route path="/join/:code" element={<JoinPage />} />
         <Route path="*" element={<p>Сторінку не знайдено.</p>} />
       </Routes>
     </main>

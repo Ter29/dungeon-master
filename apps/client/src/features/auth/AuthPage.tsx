@@ -1,19 +1,23 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from './AuthContext';
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const requested = params.get('next') ?? '';
+  const destination = /^\/join\/[A-Za-z0-9_-]{43}$/.test(requested) ? requested : '/campaigns';
+  const query = destination === '/campaigns' ? '' : `?next=${encodeURIComponent(destination)}`;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const register = mode === 'register';
-  if (auth.user) return <Navigate to="/campaigns" replace />;
+  if (auth.user) return <Navigate to={destination} replace />;
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>;
     setBusy(true); setError('');
-    try { await auth.submit(mode, data); navigate('/campaigns', { replace: true }); }
+    try { await auth.submit(mode, data); navigate(destination, { replace: true }); }
     catch (error) { setError(error instanceof Error ? error.message : 'Помилка з’єднання.'); }
     finally { setBusy(false); }
   }
@@ -29,6 +33,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       </fieldset>
       {error && <p role="alert">{error}</p>}
     </form>
-    <p><Link to={register ? '/login' : '/register'}>{register ? 'Уже є обліковий запис? Увійти' : 'Створити обліковий запис'}</Link></p>
+    <p><Link to={`${register ? '/login' : '/register'}${query}`}>{register ? 'Уже є обліковий запис? Увійти' : 'Створити обліковий запис'}</Link></p>
   </section>;
 }

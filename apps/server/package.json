@@ -14,9 +14,13 @@
     "prebuild": "prisma generate",
     "predev": "prisma generate",
     "db:check": "tsx --env-file-if-exists=.env scripts/check-database.ts",
-    "test:auth": "tsx --env-file-if-exists=.env scripts/check-auth.ts"
+    "test:auth": "tsx --env-file-if-exists=.env scripts/check-auth.ts",
+    "test:campaigns": "tsx --env-file-if-exists=.env scripts/check-campaigns.ts",
+    "test:rooms": "tsx --env-file-if-exists=.env scripts/check-rooms.ts",
+    "test:production": "tsx --env-file-if-exists=.env scripts/check-production.ts"
   },
   "dependencies": {
+    "@dnd/shared": "^0.0.0",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "express": "^5.3.0",
@@ -30,6 +34,7 @@
     "@types/node": "^24.0.0",
     "@types/pg": "^8.0.0",
     "prisma": "7.10.1",
+    "socket.io-client": "^4.8.4",
     "tsx": "^4.20.0"
   }
 }

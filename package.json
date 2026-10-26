@@ -10,8 +10,11 @@
   },
   "scripts": {
     "dev": "concurrently -k -n client,server \"npm run dev -w @dnd/client\" \"npm run dev -w @dnd/server\"",
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "build": "npm run build -w @dnd/shared && npm run build -w @dnd/client && npm run build -w @dnd/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "predev": "npm run build -w @dnd/shared",
+    "pretypecheck": "npm run build -w @dnd/shared",
+    "start:render": "npm run db:deploy -w @dnd/server && npm run start -w @dnd/server"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",
