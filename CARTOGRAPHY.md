@@ -54,4 +54,16 @@ The supported deployment remains a single Node/Socket.IO process. In-memory inva
 
 ## Deployment
 
-Existing target: https://dungeon-master-tvra.onrender.com, Render service `srv-dbfb4l8m7kps738e51c0`, confirmed My Workspace. Public deployment and HTTPS/WSS verification results will be appended after rollout. Four-client integration tests are automated sessions, not four physical PCs.
+Existing target: https://dungeon-master-tvra.onrender.com, Render service `srv-dbfb4l8m7kps738e51c0`, confirmed My Workspace. Runtime commit `fb8e026fbb53250f08294e3d9d0d920c0feed029`; deployment `dep-dbflsvivcj2c738ktkvg` is **live** (2026-10-26 15:08, Europe/Warsaw). Four-client integration tests are automated sessions, not four physical PCs.
+
+
+Final public verification:
+
+- `npm run test:cartography -w @dnd/server -- https://dungeon-master-tvra.onrender.com`: PASS public HTTPS/WSS DM + 3 Players; CRUD, simultaneous edits, element locks, private materials/images, issue/revoke, fragment transforms, bounds/quotas, reconnect and unchanged Scene state.
+- `npm run test:live -w @dnd/server`: PASS registration/login, invitations, secure cookies, DM + 3 registered Players, presence, original scene/token synchronization and reconnect/reload.
+- `npm run test:fog -w @dnd/server -- https://dungeon-master-tvra.onrender.com`: PASS Fog of War and token/image privacy on the updated production runtime.
+- Public API comparison after Render replaced the process: the pre-deployment map and every element field matched the saved baseline, including non-empty route points, note drag, fragment scale 1.5 and rotation 25°. Image download succeeded; active Scene unchanged.
+- Browser on the live site rendered the restored note, route and fragment. Screenshot: ignored `.backups/cartography-public.png`.
+- Render error-level application-log query after rollout returned no entries. All seven migrations up to date. No new secrets or infrastructure were introduced.
+
+All automated-test records/provider images were cleaned. The separate browser fixture is removed after its screenshot, leaving existing campaigns untouched. No outstanding failed checks; four physical PCs remain a human playtest, beyond these independent automated clients.
