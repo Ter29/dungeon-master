@@ -41,10 +41,10 @@ export function LocationTable({ campaignId, role }: { campaignId: string; role: 
     {!state ? <p>Очікуємо актуальний стан локації…</p> : !state.scene ? <p>Ігровий стіл порожній. DM ще не показав локацію.</p> : <article>
       <h4>{state.scene.name}</h4><p style={{ whiteSpace: 'pre-wrap' }}>{state.scene.description}</p>
       {tableError&&<p role="alert">{tableError}</p>}
-      <InteractiveMap key={state.scene.id} scene={state.scene} dm={role==='DM'} ready={Boolean(connection.current?.connected)} pulse={pulse}
+      <InteractiveMap key={`map-${state.scene.id}`} scene={state.scene} dm={role==='DM'} ready={Boolean(connection.current?.connected)} pulse={pulse}
         move={async(token,point)=>{setTableError('');try{await api(`/campaigns/${campaignId}/locations/${state.scene!.id}/tokens/${token.id}`,{...point,revision:token.revision},'PATCH');}catch(error){setTableError(errorMessage(error));}}}
         ping={point=>{const socket=connection.current;if(!socket?.connected)return;socket.timeout(10000).emit('location:ping',{...point,sceneId:state.scene!.id},(error,reply)=>{if(error)setTableError('Пінг не підтверджено.');else if(!reply.ok)setTableError(reply.message);});}}/>
-      {role==='DM'&&<TokenManager key={state.scene.id} scene={state.scene} campaignId={campaignId}/>}
+      {role==='DM'&&<TokenManager key={`tokens-${state.scene.id}`} scene={state.scene} campaignId={campaignId}/>}
 
     </article>}
     {role === 'DM' && <LocationManager campaignId={campaignId} refreshKey={revision + retry} />}
