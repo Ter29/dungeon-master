@@ -41,6 +41,7 @@ export class CampaignAudioEngine {
   private timer: ReturnType<typeof setInterval>;
   private lastDrift = 0;
   private disposed = false;
+  private outputWasPlaying = false;
   constructor(private report: (message: string) => void) {
     this.timer = setInterval(() => this.tick(), 100);
     document.addEventListener("visibilitychange", this.visibility);
@@ -81,7 +82,10 @@ export class CampaignAudioEngine {
       this.report("Звук увімкнено. Очікуємо відтворення DM.");
       this.reconcile();
       for (const v of this.voices.values())
-        if (!v.ended && v.spec.startedAt !== null) void this.play(v);
+        if (!v.ended && v.spec.startedAt !== null) {
+          if (v.audio.error) v.audio.load();
+          void this.play(v);
+        }
     } catch {
       this.report(
         "Браузер заблокував звук. Натисніть «Увімкнути звук» повторно.",
@@ -164,7 +168,6 @@ export class CampaignAudioEngine {
     audio.onended = () => {
       v.ended = true;
       if (key === "SFX") this.remove(id);
-      else this.report("Трек завершено.");
     };
     audio.src = spec.asset.url;
     if (spec.startedAt !== null) void this.play(v);
@@ -271,6 +274,23 @@ export class CampaignAudioEngine {
             /* Retry on metadata/next drift check. */
           }
       }
+    }
+    const playing =
+      this.context.state === "running" &&
+      [...this.voices.values()].some(
+        (v) => !v.audio.paused && !v.ended && v.audio.readyState >= 2,
+      );
+    if (playing !== this.outputWasPlaying) {
+      this.outputWasPlaying = playing;
+      this.report(
+        playing
+          ? "Відтворюється звук кампанії."
+          : !this.snapshot
+            ? "Відновлюємо аудіоз’єднання…"
+            : this.context.state !== "running"
+              ? "Браузер призупинив звук. Натисніть «Увімкнути звук» повторно."
+              : "Тиша · відтворення зупинено або призупинено.",
+      );
     }
   }
   dispose() {

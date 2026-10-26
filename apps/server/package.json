@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:workspace-browser": "tsx --env-file-if-exists=.env scripts/check-workspace-browser.ts",
     "test:audio": "tsx --env-file-if-exists=.env scripts/check-audio.ts",
     "test:audio-browser": "tsx --env-file-if-exists=.env scripts/check-audio-browser.ts",
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",

@@ -12,6 +12,7 @@ import { api, errorMessage } from "../../lib/api";
 import { useAuth } from "../auth/AuthContext";
 import { CampaignAudioEngine, defaultAudio, type LocalAudio } from "./engine";
 import "./audio.css";
+import { WorkspaceArea, useWorkspace } from "../workspace/Workspace";
 export function CampaignAudio({
   campaignId,
   dm,
@@ -28,6 +29,33 @@ export function CampaignAudio({
   refresh: () => void;
 }) {
   const { user } = useAuth();
+  const updateWorkspace = useWorkspace()?.update;
+  const favoritesKey = `obsidian-sfx:${user?.id}:${campaignId}`;
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(favoritesKey) ?? "[]");
+      return Array.isArray(v)
+        ? v.filter((x: unknown) => typeof x === "string").slice(0, 24)
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  function favorite(id: string) {
+    setFavorites((old) => {
+      const next = old.includes(id)
+        ? old.filter((v) => v !== id)
+        : [...old.slice(-23), id];
+      try {
+        localStorage.setItem(favoritesKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }
+  useEffect(() => {
+    const c = state?.channels.find((c) => c.key === "MUSIC");
+    updateWorkspace?.({ music: c?.voice ? c.voice.asset.name : "Тиша" });
+  }, [state, updateWorkspace]);
   const engine = useRef<CampaignAudioEngine | null>(null);
   const [status, setStatus] = useState(
     "Натисніть «Увімкнути звук», щоб чути кампанію.",
@@ -138,7 +166,22 @@ export function CampaignAudio({
         <button onClick={() => void engine.current?.enable()}>
           Увімкнути звук
         </button>
-        <p role="status">{status}</p>
+        <p
+          className={
+            /заблок|недоступ|не почал|призупинив|не вдало/i.test(status)
+              ? "audio-error"
+              : "audio-state"
+          }
+          role="status"
+        >
+          {/Відтворюється/.test(status)
+            ? "● Відтворюється"
+            : /Тиша/.test(status)
+              ? "○ Тиша"
+              : /^Натисніть/.test(status)
+                ? "○ Звук ще не активовано"
+                : status}
+        </p>
         <details>
           <summary>♫ Гучність і стан</summary>
           <p>
@@ -174,58 +217,101 @@ export function CampaignAudio({
         </details>
       </aside>
       {dm && (
-        <details className="audio-dashboard">
-          <summary>Audio Director</summary>
-          {error && <p role="alert">{error}</p>}
-          <div className="audio-channels">
-            {(["MUSIC", "AMBIENCE"] as const).map((key) => {
-              const c = state?.channels.find((c) => c.key === key);
-              const now = clock + clockOffset.current;
-              const finished =
-                c?.status === "PLAYING" &&
-                c.voice &&
-                ((!c.voice.loop &&
-                  audioPosition(c.voice, now) >= c.voice.asset.duration) ||
-                  (c.fade.to === 0 && now >= c.fade.at + c.fade.ms));
-              return (
-                <Channel
-                  key={key}
-                  channelKey={key}
-                  current={c?.voice?.asset.name ?? "Немає треку"}
-                  status={finished ? "STOPPED" : (c?.status ?? "STOPPED")}
-                  loop={c?.voice?.loop ?? true}
-                  volume={c?.volume ?? 1}
-                  disabled={busy || !state}
-                  assets={
-                    library?.assets.filter((a) => a.category === key) ?? []
-                  }
-                  command={(action, extra) => command(key, action, extra)}
-                />
-              );
-            })}
-          </div>
-          <h3>SFX</h3>
-          <div className="audio-sfx">
-            {library?.assets
-              .filter((a) => a.category === "SFX")
-              .map((a) => (
-                <button
-                  key={a.id}
-                  disabled={busy || !state}
-                  onClick={() =>
-                    void run(() =>
-                      api(`${base}/cues`, {
-                        assetId: a.id,
-                        assetRevision: a.revision,
-                      }),
-                    )
-                  }
-                >
-                  {a.name}
-                </button>
-              ))}
-          </div>
-          <details>
+        <WorkspaceArea name="audio.main">
+          <section className="audio-dashboard">
+            <div className="section-intro">
+              <span className="eyebrow">THE SOUND OF YOUR WORLD</span>
+              <h3>Атмосфера починається зі звуку</h3>
+              <p>Два незалежні канали. Один простір для вашої історії.</p>
+            </div>
+            {error && <p role="alert">{error}</p>}
+            <div className="audio-channels">
+              {(["MUSIC", "AMBIENCE"] as const).map((key) => {
+                const c = state?.channels.find((c) => c.key === key);
+                const now = clock + clockOffset.current;
+                const finished =
+                  c?.status === "PLAYING" &&
+                  c.voice &&
+                  ((!c.voice.loop &&
+                    audioPosition(c.voice, now) >= c.voice.asset.duration) ||
+                    (c.fade.to === 0 && now >= c.fade.at + c.fade.ms));
+                return (
+                  <Channel
+                    key={key}
+                    channelKey={key}
+                    current={c?.voice?.asset.name ?? "Немає треку"}
+                    status={finished ? "STOPPED" : (c?.status ?? "STOPPED")}
+                    loop={c?.voice?.loop ?? true}
+                    volume={c?.volume ?? 1}
+                    disabled={busy || !state}
+                    assets={
+                      library?.assets.filter((a) => a.category === key) ?? []
+                    }
+                    command={(action, extra) => command(key, action, extra)}
+                  />
+                );
+              })}
+            </div>
+            <h3>
+              Швидкі ефекти <small>SFX</small>
+            </h3>
+            <p className="muted">
+              Зірочка додає ефект до вашої особистої швидкої панелі.
+            </p>
+            {!library?.assets.some((a) => a.category === "SFX") && (
+              <div className="empty-card">
+                Додайте перший ефект у бібліотеці праворуч: двері, грім або
+                голос монстра.
+              </div>
+            )}
+            <div className="audio-sfx">
+              {library?.assets
+                .filter((a) => a.category === "SFX")
+                .sort(
+                  (a, b) =>
+                    Number(favorites.includes(b.id)) -
+                    Number(favorites.includes(a.id)),
+                )
+                .map((a) => (
+                  <div className="sfx-tile" key={a.id}>
+                    <button
+                      key={a.id}
+                      disabled={busy || !state}
+                      onClick={() =>
+                        void run(() =>
+                          api(`${base}/cues`, {
+                            assetId: a.id,
+                            assetRevision: a.revision,
+                          }),
+                        )
+                      }
+                    >
+                      {a.name}
+                    </button>
+                    <button
+                      className="sfx-favorite"
+                      aria-label={`${favorites.includes(a.id) ? "Прибрати з" : "Додати до"} улюблених ${a.name}`}
+                      aria-pressed={favorites.includes(a.id)}
+                      onClick={() => favorite(a.id)}
+                    >
+                      {favorites.includes(a.id) ? "★" : "☆"}
+                    </button>
+                  </div>
+                ))}
+            </div>
+            <div className="info-card">
+              <strong>Приватне прослуховування ≠ показ гравцям</strong>
+              <p>
+                Preview у бібліотеці чуєте тільки ви. Канали Music, Ambience та
+                кнопки SFX керують звуком усієї групи.
+              </p>
+            </div>
+          </section>
+        </WorkspaceArea>
+      )}
+      {dm && (
+        <WorkspaceArea name="audio.context">
+          <details open>
             <summary>Бібліотека аудіо</summary>
             <p>
               MP3 / OGG / WAV · до{" "}
@@ -373,7 +459,7 @@ export function CampaignAudio({
                 ))}
             </ul>
           </details>
-        </details>
+        </WorkspaceArea>
       )}
     </>
   );

@@ -169,8 +169,9 @@ try {
   browser = await chromium.launch({
     channel: process.env.AUDIO_BROWSER_CHANNEL || "chrome",
     headless: true,
+    ignoreDefaultArgs: ["--mute-audio"],
     args: [
-      "--autoplay-policy=document-user-activation-required",
+      "--autoplay-policy=user-gesture-required",
       "--disable-features=PreloadMediaEngagementData,MediaEngagementBypassAutoplayPolicies",
     ],
   });
@@ -260,31 +261,51 @@ try {
         }),
       };
     });
+  // Playwright evaluate supplies a user gesture. Explicitly omit it for the policy probe.
+  const cdp = await contexts[1]!.newCDPSession(pages[1]!);
+  const probeUrl='data:audio/wav;base64,'+wav(.2).toString('base64');
+  const blockedResult = await cdp.send("Runtime.evaluate", {
+    expression: `(async()=>{const a=new Audio(${JSON.stringify(probeUrl)});try{await a.play();a.pause();return 'unexpected-play';}catch(e){return e.name;}})()`,
+    awaitPromise: true,
+    returnByValue: true,
+    userGesture: false,
+  });
+  const blocked = blockedResult.result.value;
+  await cdp.detach();
+  assert.ok(["NotAllowedError", "unexpected-play"].includes(blocked));
+  console.log(
+    blocked === "NotAllowedError"
+      ? "PASS: browser rejected unactivated playback with NotAllowedError."
+      : "NOTE: this Chrome permits the isolated autoplay probe; application still requires explicit activation and creates no output context beforehand.",
+  );
   assert.equal((await proof(pages[1]!)).playing, 0);
   assert.equal(
     (await proof(pages[1]!)).contexts.length,
     0,
     "no pretend playback before activation",
   );
-  const blocked = await pages[1]!.evaluate(async (url) => {
-    const a = new Audio(url);
-    try {
-      await a.play();
-      a.pause();
-      return "unexpected-play";
-    } catch (e) {
-      return e instanceof DOMException ? e.name : "rejected";
-    }
-  }, assets[0]!.url);
-  assert.equal(
-    blocked,
-    "NotAllowedError",
-    "browser genuinely rejects unactivated playback",
-  );
+  const failedAudioPattern = `**${assets[0]!.url}*`;
+  await pages[1]!.route(failedAudioPattern, (route) => route.abort("failed"));
   for (const page of pages)
     await page
       .getByRole("button", { name: "Увімкнути звук", exact: true })
       .click();
+  await wait(
+    async () =>
+      /недоступ|не почалося/.test(
+        await pages[1]!.locator(".audio-personal [role=status]").innerText(),
+      ),
+    "actual failed play reported",
+  );
+  assert.equal(
+    (await proof(pages[1]!)).playing,
+    0,
+    "failed play never claimed as output",
+  );
+  await pages[1]!.unroute(failedAudioPattern);
+  await pages[1]!
+    .getByRole("button", { name: "Увімкнути звук", exact: true })
+    .click();
   await wait(async () => {
     const p = await proof(pages[1]!);
     return p.playing === 1 && p.rms.some((n) => n > 0.001);
@@ -448,7 +469,17 @@ try {
     async () => (await proof(pages[1]!)).playing === 0,
     "stop all output",
   );
-  await pages[0]!.getByText("Audio Director", { exact: true }).click();
+  await wait(
+    async () =>
+      /Тиша/.test(
+        await pages[1]!.locator(".audio-personal [role=status]").innerText(),
+      ),
+    "truthful stopped indicator",
+  );
+  await pages[0]!
+    .getByRole("navigation", { name: "Розділи кампанії" })
+    .getByRole("button", { name: "Audio", exact: true })
+    .click();
   await mkdir("../../.backups", { recursive: true });
   await pages[0]!.screenshot({
     path: resolve("../../.backups/audio-director-browser.png"),

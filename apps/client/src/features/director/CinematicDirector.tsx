@@ -5,6 +5,7 @@ import { api, errorMessage } from "../../lib/api";
 import { DirectorControls } from "./DirectorControls";
 import { PresentationScreen } from "./PresentationScreen";
 import { CampaignAudio } from "../audio/CampaignAudio";
+import { WorkspaceArea, useWorkspace } from "../workspace/Workspace";
 import type { AudioSnapshot, AudioCueView } from "@dnd/shared";
 export function CinematicDirector({
   campaignId,
@@ -17,6 +18,8 @@ export function CinematicDirector({
   children: ReactNode;
   onTable: () => void;
 }) {
+  const workspace = useWorkspace(),
+    updateWorkspace = workspace?.update;
   const [state, setState] = useState<DirectorSnapshot | null>(null),
     [online, setOnline] = useState(false),
     [status, setStatus] = useState("Підключення подачі…"),
@@ -98,6 +101,9 @@ export function CinematicDirector({
   }, [state?.mode, onTable]);
   const covered = !dm && (!state || state.mode !== "TABLE");
   useEffect(() => {
+    updateWorkspace?.({ mode: state?.mode ?? "Підключення" });
+  }, [state?.mode, updateWorkspace]);
+  useEffect(() => {
     if (!covered) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -118,15 +124,14 @@ export function CinematicDirector({
         }}
       />
       {dm && (
-        <>
-          <p role="status">
-            {status}{" "}
-            <button onClick={() => setRetry((n) => n + 1)}>
-              Перепідключити подачу
-            </button>
-          </p>
-          <details>
-            <summary>Scene Director · {state?.mode ?? "Підключення…"}</summary>
+        <WorkspaceArea name="director.context">
+          <>
+            <p role="status">
+              {status}{" "}
+              <button onClick={() => setRetry((n) => n + 1)}>
+                Перепідключити подачу
+              </button>
+            </p>
             <DirectorControls
               campaignId={campaignId}
               state={state}
@@ -135,18 +140,20 @@ export function CinematicDirector({
               onState={accept}
               refreshState={refresh}
             />
-          </details>
-        </>
+          </>
+        </WorkspaceArea>
       )}
       <div data-director-workspace="true" inert={covered} aria-hidden={covered}>
         {children}
       </div>
       {!dm && (
-        <PresentationScreen
-          state={state}
-          fullscreen
-          label="Екран презентації гравця"
-        />
+        <WorkspaceArea name="table.main">
+          <PresentationScreen
+            state={state}
+            fullscreen
+            label="Екран презентації гравця"
+          />
+        </WorkspaceArea>
       )}
     </>
   );
