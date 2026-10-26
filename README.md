@@ -4,6 +4,8 @@
 
 Онлайн-сайт: [Dungeon Master](https://dungeon-master-tvra.onrender.com). Frontend, API та WebSocket працюють через одну HTTPS-адресу Render; база — Neon. Див. [розгортання й перевірки](DEPLOYMENT.md).
 
+Sprint 2.1: [Scene Foundation — моделі, API, сховище, перевірки й відновлення](SCENE_FOUNDATION.md). У кампанії доступні менеджер локацій DM та спільна активна локація. Тестовий стіл Sprint 1 збережено в окремому розділі.
+
 ## Структура
 
 ```text

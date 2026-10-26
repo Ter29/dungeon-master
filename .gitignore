@@ -1,4 +1,8 @@
 node_modules/
+.backups/
+postman/.dependencies/
+postman/*.ndjson
+postman/*.err
 apps/server/src/generated/
 .npm-cache/
 dist/

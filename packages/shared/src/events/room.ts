@@ -12,6 +12,8 @@ export interface ClientEvents {
   'player:ping': (data: Point, ack: (reply: Reply) => void) => void;
 }
 export interface ServerEvents {
+  'location:snapshot': (snapshot: import('./locations.js').LocationSnapshot) => void;
+  'locations:changed': () => void;
   'room:snapshot': (snapshot: Snapshot) => void;
   'room:ping': (ping: Ping) => void;
   'room:error': (message: string) => void;

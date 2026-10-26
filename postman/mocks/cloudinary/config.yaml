@@ -1,0 +1,10 @@
+version: 1
+name: Cloudinary
+slug: cloudinary
+protocol: http
+interceptRequests: true
+port: 4901
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

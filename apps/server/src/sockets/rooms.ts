@@ -7,6 +7,7 @@ import { prisma } from '../database/client.js';
 import { sessionHash } from '../auth/router.js';
 import { sessionEvents } from '../auth/events.js';
 import { appOrigin as origin } from '../config/app.js';
+import { activeSnapshot, locationEvents } from '../scenes/state.js';
 
 type Data = { campaignId: string; userId: string; tokenHash: string; expiresAt: Date };
 type RoomSocket = Socket<ClientEvents, ServerEvents, Record<string, never>, Data>;
@@ -46,6 +47,24 @@ export function createRooms(server: HttpServer) {
     if (!member) { socket.disconnect(true); throw new Error('Доступ до кампанії відсутній.'); }
     return member;
   }
+  async function publishLocation(id: string, invalidate = false) {
+    const state = await activeSnapshot(id);
+    for (const socket of io.sockets.sockets.values()) {
+      if (!socket.rooms.has(roomName(id))) continue;
+      try {
+        const member = await authorize(socket);
+        socket.emit('location:snapshot', state);
+        if (invalidate && member.role === 'DM') socket.emit('locations:changed');
+      } catch { socket.disconnect(true); }
+    }
+  }
+  const onLocationsChanged = (id: string) => {
+    void enqueue(id, () => publishLocation(id, true)).catch(() => {
+      io.to(roomName(id)).emit('room:error', 'Не вдалося оновити локацію. Перепідключіться.');
+    });
+  };
+  locationEvents.on('changed', onLocationsChanged);
+  io.engine.once('close', () => locationEvents.off('changed', onLocationsChanged));
   io.use(async (socket, next) => {
     try {
       const campaignId = z.string().uuid().parse(socket.handshake.auth.campaignId);
@@ -69,6 +88,7 @@ export function createRooms(server: HttpServer) {
       await authorize(socket);
       await socket.join(roomName(id));
       await snapshot(id);
+      await publishLocation(id);
     }).catch(() => { socket.emit('room:error', 'Не вдалося завантажити кімнату.'); socket.disconnect(true); });
     function command(ack: unknown, task: () => Promise<void>) {
       if (typeof ack !== 'function') return;
@@ -90,7 +110,7 @@ export function createRooms(server: HttpServer) {
       await snapshot(id);
       if (!result.count) throw new PublicError('Стан уже змінився. Оновлено до останньої версії; повторіть дію.');
     }
-    socket.on('room:sync', ack => command(ack, async () => { await authorize(socket); await snapshot(id); }));
+    socket.on('room:sync', ack => command(ack, async () => { await authorize(socket); await snapshot(id); await publishLocation(id); }));
     socket.on('token:move', (data, ack) => command(ack, async () => {
       const parsed = point.extend({ version }).safeParse(data);
       if (!parsed.success) throw new PublicError('Некоректні координати.');

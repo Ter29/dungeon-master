@@ -1,0 +1,6 @@
+simulation: scene-storage-outage
+routing: path
+mocks:
+  - name: Cloudinary
+    routeKey: cloudinary
+    path: postman/mocks/cloudinary/config.yaml

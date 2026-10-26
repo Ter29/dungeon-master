@@ -9,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { extname } from 'node:path';
 import { production } from './config/app.js';
+import { sceneRouter } from './scenes/router.js';
+import { SceneError } from './scenes/state.js';
+import { MulterError } from 'multer';
 
 const app = express();
 app.disable('x-powered-by');
@@ -20,6 +23,7 @@ app.use((_req, res, next) => {
 });
 app.use(express.json({ limit: '100kb' }));
 app.use('/api/auth', authRouter);
+app.use('/api/campaigns/:campaignId/locations', sceneRouter);
 app.use('/api', campaignRouter);
 
 // Liveness only: this endpoint does not check database connectivity.
@@ -54,6 +58,8 @@ if (production) {
 }
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+  if (error instanceof SceneError) { res.status(error.status).json({ message: error.message }); return; }
+  if (error instanceof MulterError) { res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ message: error.code === 'LIMIT_FILE_SIZE' ? 'Максимальний розмір — 8 МіБ.' : 'Некоректний файл або поля завантаження.' }); return; }
   const status = error?.type === 'entity.parse.failed' ? 400 : error?.type === 'entity.too.large' ? 413 : 500;
   res.status(status).json({ message: status === 500 ? 'Помилка сервера. Спробуйте пізніше.' : 'Некоректний запит.' });
 };
