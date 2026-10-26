@@ -40,7 +40,7 @@ export function InteractiveMap({scene,dm,ready,move,ping,pulse}:{scene:LocationV
     <p>Колесо — масштаб; перетягування фону — камера. {dm?'Перетягніть токен для переміщення; Shift — камера.':'Натисніть на карту для пінгу. Токенами керує DM.'}</p>
     <svg ref={svg} role="img" aria-label={`Інтерактивна локація: ${scene.name}`} viewBox="0 0 1000 650" preserveAspectRatio="xMidYMid meet" style={{width:'100%',height:'min(65vh,650px)',minHeight:300,background:'#20242b',touchAction:'none',userSelect:'none'}}
       onPointerDown={event=>begin(event)} onPointerMove={event=>{const action=gesture.current;if(!action)return;const p=viewPoint(event);if(Math.hypot(p.x-action.start.x,p.y-action.start.y)>3)action.moved=true;
-        if(action.token)setPreview({...world(p),id:action.token.id});else if(action.moved)setCamera(c=>({...c,x:c.x+p.x-action.last.x,y:c.y+p.y-action.last.y}));action.last=p;}}
+        if(action.token)setPreview({...world(p),id:action.token.id});else if(action.moved){const dx=p.x-action.last.x,dy=p.y-action.last.y;setCamera(c=>({...c,x:c.x+dx,y:c.y+dy}));}action.last=p;}}
       onPointerUp={event=>void finish(event)} onPointerCancel={()=>{gesture.current=null;setPreview(null);}}>
       <defs><pattern id={`grid-${scene.id}`} x={scene.grid.offsetX} y={scene.grid.offsetY} width={scene.grid.size} height={scene.grid.size} patternUnits="userSpaceOnUse"><path d={`M ${scene.grid.size} 0 L 0 0 0 ${scene.grid.size}`} fill="none" stroke="#fff" strokeWidth="1" opacity=".6"/></pattern>
         {scene.tokens.map(token=><clipPath key={token.id} id={`clip-${token.id}`}><circle r={token.size/2}/></clipPath>)}
