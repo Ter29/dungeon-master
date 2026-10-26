@@ -34,4 +34,14 @@ Browser verification: private Preview left global TABLE/version 0 unchanged; Por
 
 Recovery: pre-migration backup `pre-table-foundation-1793027610790.json` rehearsed before applying migration. Post-migration backup `pre-table-foundation-1793028876750.json`, including an active Illustration, restored and compared exactly using `db:restore-foundation --verify-only`; temporary schema removed, public schema unchanged. Backups remain ignored/private. An initial sandbox DNS failure was resolved by running the same verification with network access.
 
-Deployment and public verification results pending.
+## Deployment and public verification
+
+Live at https://dungeon-master-tvra.onrender.com, unchanged URL. Runtime commit `08d4f6ee11d13ed96d964f5f87a9eb38f5922b2f`, Render deploy `dep-dbfp4iifngtc73dvs5eg`, status live at 2026-10-26 17:49:08 UTC. Nine migrations applied; Prisma reports schema up to date. No infrastructure, secrets or service-plan changes.
+
+Passed on production HTTPS/WSS: `test:director`, `test:live`, `test:combat`, `test:fog`, `test:cartography`. Director exercised DM + 3 independent Player sessions, all four modes, private library/images, CRUD/upload, stale versions/concurrent writes, active deletion, and Illustration reconnect. These are automated sessions, not four physical PCs.
+
+Additional deployment persistence check: active Illustration/version 12 set before deployment was returned identically by the public API after process replacement. Campaign game columns, Scene/Fog/grid, tokens, active round-4 combat with participants, and shared map/elements compared exactly to the pre-deployment baseline. Error-level Render logs since deployment returned no entries.
+
+Public visual recheck could not complete: in-app browser was unavailable and native Chrome Computer Use approval timed out. Local browser visual/camera checks above passed; no public screenshot is claimed. Test campaigns/accounts and their Cloudinary files were cleaned up after verification.
+
+Deployment followed the [Render deploy skill](C:/Users/smart/.codex/plugins/cache/openai-curated-remote/app-6a624c56bfe081918f7544f7d58f6faf/1.0.2/skills/render-deploy/SKILL.md) and current official [deployment](https://render.com/docs/deploys) and [health-check](https://render.com/docs/health-checks) references. The public-Git-URL service required a manual deployment trigger.
