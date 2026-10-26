@@ -83,22 +83,29 @@ model Invite {
 }
 
 model Scene {
-  id           String     @id @default(uuid()) @db.Uuid
-  campaignId   String     @db.Uuid
-  name         String     @db.VarChar(120)
-  description  String     @default("") @db.VarChar(4000)
-  backgroundId String?    @unique @db.Uuid
-  revision     Int        @default(0)
-  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
-  campaign     Campaign   @relation("CampaignScenes", fields: [campaignId], references: [id], onDelete: Cascade)
-  background   MediaFile? @relation(fields: [backgroundId], references: [id], onDelete: SetNull)
-  activeIn     Campaign[] @relation("ActiveLocation")
+  gridVisible   Boolean    @default(false)
+  gridSize      Float      @default(50)
+  gridOffsetX   Float      @default(0)
+  gridOffsetY   Float      @default(0)
+  tableRevision Int        @default(0)
+  tokens        Token[]
+  id            String     @id @default(uuid()) @db.Uuid
+  campaignId    String     @db.Uuid
+  name          String     @db.VarChar(120)
+  description   String     @default("") @db.VarChar(4000)
+  backgroundId  String?    @unique @db.Uuid
+  revision      Int        @default(0)
+  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+  campaign      Campaign   @relation("CampaignScenes", fields: [campaignId], references: [id], onDelete: Cascade)
+  background    MediaFile? @relation(fields: [backgroundId], references: [id], onDelete: SetNull)
+  activeIn      Campaign[] @relation("ActiveLocation")
 
   @@index([campaignId])
 }
 
 model MediaFile {
+  token      Token?
   id         String    @id @default(uuid()) @db.Uuid
   campaignId String    @db.Uuid
   storageKey String    @unique
@@ -114,4 +121,29 @@ model MediaFile {
 
   @@index([campaignId])
   @@index([deletedAt])
+}
+
+enum TokenKind {
+  PLAYER
+  NPC
+  ENEMY
+}
+
+model Token {
+  id        String     @id @default(uuid()) @db.Uuid
+  sceneId   String     @db.Uuid
+  name      String     @db.VarChar(80)
+  kind      TokenKind  @default(NPC)
+  x         Float      @default(50)
+  y         Float      @default(50)
+  size      Float      @default(50)
+  hidden    Boolean    @default(true)
+  revision  Int        @default(0)
+  imageId   String?    @unique @db.Uuid
+  createdAt DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime   @updatedAt @db.Timestamptz(3)
+  scene     Scene      @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  image     MediaFile? @relation(fields: [imageId], references: [id], onDelete: SetNull)
+
+  @@index([sceneId, hidden])
 }

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { prisma } from '../database/client.js';
 import { sessionUser } from '../auth/router.js';
 import { appOrigin } from '../config/app.js';
-import { SceneError, activeSnapshot, locationEvents, sceneView } from './state.js';
+import { SceneError, activeSnapshot, locationEvents, sceneView, tokenView } from './state.js';
 import { MAX_IMAGE_BYTES, cleanupMedia, normalizeImage, readImage, storageAvailable, uploadImage } from './storage.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
@@ -67,7 +67,7 @@ sceneRouter.get('/', dm, async (_req, res) => {
     include: { locations: { include: { background: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } } });
   res.json({ scenes: campaign.locations.map(sceneView), version: campaign.locationVersion, activeLocationId: campaign.activeLocationId, storageAvailable: storageAvailable() });
 });
-sceneRouter.get('/active', async (_req, res) => { res.json(await activeSnapshot(res.locals.campaignId)); });
+sceneRouter.get('/active', async (_req, res) => { res.json(await activeSnapshot(res.locals.campaignId, res.locals.member.role)); });
 sceneRouter.post('/', dm, limit, async (req, res) => {
   const data = parse(fields, req.body);
   const scene = await prisma.scene.create({ data: { ...data, campaignId: res.locals.campaignId }, include: { background: true } });
@@ -81,7 +81,7 @@ sceneRouter.post('/activate', dm, limit, async (req, res) => {
     if (data.sceneId) await currentScene(tx, campaign.id, data.sceneId);
     await tx.campaign.update({ where: { id: campaign.id }, data: { activeLocationId: data.sceneId, locationVersion: { increment: 1 } } });
   });
-  notify(res.locals.campaignId); res.json(await activeSnapshot(res.locals.campaignId));
+  notify(res.locals.campaignId); res.json(await activeSnapshot(res.locals.campaignId, 'DM'));
 });
 sceneRouter.get('/:sceneId', dm, validScene, async (_req, res) => {
   res.json({ scene: sceneView(await currentScene(prisma, res.locals.campaignId, res.locals.sceneId)) });
@@ -100,12 +100,14 @@ sceneRouter.delete('/:sceneId', dm, validScene, limit, async (req, res) => {
   const oldId = await locked(res.locals.campaignId, async tx => {
     const scene = await currentScene(tx, res.locals.campaignId, res.locals.sceneId, data.revision);
     await tx.campaign.updateMany({ where: { id: scene.campaignId, activeLocationId: scene.id }, data: { activeLocationId: null, locationVersion: { increment: 1 } } });
+    const tokens = await tx.token.findMany({where:{sceneId:scene.id},select:{imageId:true}});
+    const ids=[scene.backgroundId,...tokens.map(token=>token.imageId)].filter((id):id is string=>Boolean(id));
     await tx.scene.delete({ where: { id: scene.id } });
-    if (scene.backgroundId) await tx.mediaFile.update({ where: { id: scene.backgroundId }, data: { deletedAt: new Date() } });
-    return scene.backgroundId;
+    await tx.mediaFile.updateMany({where:{id:{in:ids}},data:{deletedAt:new Date()}});
+    return ids;
   });
   notify(res.locals.campaignId); res.status(204).end();
-  if (oldId) void cleanupMedia(oldId).catch(() => {});
+  for(const id of oldId) void cleanupMedia(id).catch(() => {});
 });
 
 let uploading = false;
@@ -157,4 +159,106 @@ sceneRouter.get('/:sceneId/background/:mediaId', validScene, async (req, res) =>
   await allowed();
   res.set({ 'Content-Type': file.mimeType, 'Content-Length': String(data.length), 'Content-Disposition': 'inline', 'Cache-Control': 'private, no-store' });
   res.end(data);
+});
+
+// Interactive table and tokens: pixel coordinates in the original map, never screen coordinates.
+const tableLimit = rateLimit({windowMs:15*60000,limit:600,standardHeaders:'draft-8',legacyHeaders:false,message:{message:'Забагато змін столу. Зачекайте.'}});
+const tokenFields=z.object({name:z.string().trim().min(1).max(80),kind:z.enum(['PLAYER','NPC','ENEMY']),x:z.number().min(0).max(100000),y:z.number().min(0).max(100000),size:z.number().min(4).max(2000),hidden:z.boolean()});
+async function tableAccess(campaignId:string,sceneId:string,role:string) {
+  const scene=await currentScene(prisma,campaignId,sceneId);
+  if(role!=='DM') {
+    const campaign=await prisma.campaign.findUniqueOrThrow({where:{id:campaignId}});
+    if(campaign.activeLocationId!==sceneId) throw new SceneError(404,'Локацію не знайдено.');
+  }
+  return scene;
+}
+async function findToken(tx:Prisma.TransactionClient,sceneId:string,id:string,revision?:number) {
+  if(!uuid.safeParse(id).success) throw new SceneError(404,'Токен не знайдено.');
+  const token=await tx.token.findFirst({where:{id,sceneId},include:{image:true}});
+  if(!token) throw new SceneError(404,'Токен не знайдено.');
+  if(revision!==undefined && token.revision!==revision) throw new SceneError(409,'Токен вже змінився. Оновіть дані.');
+  return token;
+}
+function checkPosition(scene:Awaited<ReturnType<typeof currentScene>>,point:{x:number;y:number}) {
+  if(point.x>(scene.background?.width??1000)||point.y>(scene.background?.height??700)) throw new SceneError(400,'Координати за межами карти.');
+}
+async function bumpTable(tx:Prisma.TransactionClient,campaignId:string,sceneId:string) {
+  await tx.scene.update({where:{id:sceneId},data:{tableRevision:{increment:1}}});
+  await bumpIfActive(tx,campaignId,sceneId);
+}
+sceneRouter.patch('/:sceneId/grid',dm,validScene,tableLimit,async(req,res)=>{
+  const data=parse(z.object({visible:z.boolean(),size:z.number().min(8).max(1000),offsetX:z.number().min(-10000).max(10000),offsetY:z.number().min(-10000).max(10000),revision:revisionSchema}),req.body);
+  const updated=await locked(res.locals.campaignId,async tx=>{
+    const scene=await currentScene(tx,res.locals.campaignId,res.locals.sceneId);
+    if(scene.tableRevision!==data.revision) throw new SceneError(409,'Налаштування столу змінились. Оновіть дані.');
+    const result=await tx.scene.update({where:{id:scene.id},data:{gridVisible:data.visible,gridSize:data.size,gridOffsetX:data.offsetX,gridOffsetY:data.offsetY,tableRevision:{increment:1}},include:{background:true}});
+    await bumpIfActive(tx,scene.campaignId,scene.id);return result;
+  });notify(res.locals.campaignId);res.json({scene:sceneView(updated)});
+});
+sceneRouter.get('/:sceneId/tokens',validScene,async(_req,res)=>{
+  await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
+  const tokens=await prisma.token.findMany({where:{sceneId:res.locals.sceneId,...(res.locals.member.role==='DM'?{}:{hidden:false})},include:{image:true},orderBy:[{createdAt:'asc'},{id:'asc'}]});
+  res.json({tokens:tokens.map(token=>tokenView(token,res.locals.campaignId))});
+});
+sceneRouter.get('/:sceneId/tokens/:tokenId',validScene,async(req,res)=>{
+  await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
+  const token=await findToken(prisma,res.locals.sceneId,String(req.params.tokenId));
+  if(token.hidden&&res.locals.member.role!=='DM') throw new SceneError(404,'Токен не знайдено.');
+  res.json({token:tokenView(token,res.locals.campaignId)});
+});
+sceneRouter.post('/:sceneId/tokens',dm,validScene,tableLimit,async(req,res)=>{
+  const data=parse(tokenFields,req.body);
+  const token=await locked(res.locals.campaignId,async tx=>{
+    const scene=await currentScene(tx,res.locals.campaignId,res.locals.sceneId);checkPosition(scene,data);
+    const token=await tx.token.create({data:{...data,sceneId:scene.id},include:{image:true}});
+    await bumpTable(tx,scene.campaignId,scene.id);return token;
+  });notify(res.locals.campaignId);res.status(201).json({token:tokenView(token,res.locals.campaignId)});
+});
+sceneRouter.patch('/:sceneId/tokens/:tokenId',dm,validScene,tableLimit,async(req,res)=>{
+  const data=parse(tokenFields.partial().extend({revision:revisionSchema}).strict(),req.body);
+  const token=await locked(res.locals.campaignId,async tx=>{
+    const scene=await currentScene(tx,res.locals.campaignId,res.locals.sceneId);
+    const token=await findToken(tx,scene.id,String(req.params.tokenId),data.revision);
+    const {revision,...changes}=data;checkPosition(scene,{x:changes.x??token.x,y:changes.y??token.y});
+    const updated=await tx.token.update({where:{id:token.id},data:{...changes,revision:{increment:1}},include:{image:true}});
+    await bumpTable(tx,scene.campaignId,scene.id);return updated;
+  });notify(res.locals.campaignId);res.json({token:tokenView(token,res.locals.campaignId)});
+});
+sceneRouter.delete('/:sceneId/tokens/:tokenId',dm,validScene,tableLimit,async(req,res)=>{
+  const data=parse(z.object({revision:revisionSchema}),req.body);
+  const imageId=await locked(res.locals.campaignId,async tx=>{
+    const scene=await currentScene(tx,res.locals.campaignId,res.locals.sceneId);
+    const token=await findToken(tx,scene.id,String(req.params.tokenId),data.revision);
+    await tx.token.delete({where:{id:token.id}});
+    if(token.imageId) await tx.mediaFile.update({where:{id:token.imageId},data:{deletedAt:new Date()}});
+    await bumpTable(tx,scene.campaignId,scene.id);return token.imageId;
+  });notify(res.locals.campaignId);res.status(204).end();if(imageId)void cleanupMedia(imageId).catch(()=>{});
+});
+const validToken:RequestHandler=async(req,res,next)=>{await findToken(prisma,res.locals.sceneId,String(req.params.tokenId));next();};
+sceneRouter.post('/:sceneId/tokens/:tokenId/image',dm,validScene,validToken,uploadLimit,uploadSlot,upload.single('file'),async(req,res)=>{
+  if(!req.file)throw new SceneError(400,'Оберіть PNG/JPG.');
+  const revision=parse(z.coerce.number().int().min(0),req.body?.revision);
+  await findToken(prisma,res.locals.sceneId,String(req.params.tokenId),revision);
+  const image=await normalizeImage(req.file.buffer,req.file.mimetype);
+  const file=await prisma.mediaFile.create({data:{campaignId:res.locals.campaignId,storageKey:`dungeon-master/${res.locals.campaignId}/${randomUUID()}`,format:image.format,mimeType:image.mimeType,byteSize:image.data.length,width:image.width,height:image.height,deletedAt:new Date()}});
+  await uploadImage(file.storageKey,image.data);
+  const result=await locked(res.locals.campaignId,async tx=>{
+    const scene=await currentScene(tx,res.locals.campaignId,res.locals.sceneId);
+    const old=await findToken(tx,scene.id,String(req.params.tokenId),revision);
+    await tx.mediaFile.update({where:{id:file.id},data:{deletedAt:null}});
+    const token=await tx.token.update({where:{id:old.id},data:{imageId:file.id,revision:{increment:1}},include:{image:true}});
+    if(old.imageId)await tx.mediaFile.update({where:{id:old.imageId},data:{deletedAt:new Date()}});
+    await bumpTable(tx,scene.campaignId,scene.id);return {token,oldId:old.imageId};
+  });notify(res.locals.campaignId);res.json({token:tokenView(result.token,res.locals.campaignId)});
+  if(result.oldId)void cleanupMedia(result.oldId).catch(()=>{});
+});
+sceneRouter.get('/:sceneId/tokens/:tokenId/image/:mediaId',validScene,async(req,res)=>{
+  async function allowed(){
+    await tableAccess(res.locals.campaignId,res.locals.sceneId,res.locals.member.role);
+    const token=await findToken(prisma,res.locals.sceneId,String(req.params.tokenId));
+    if((token.hidden&&res.locals.member.role!=='DM')||token.imageId!==req.params.mediaId||!token.image||token.image.deletedAt)throw new SceneError(404,'Зображення не знайдено.');
+    return token.image;
+  }
+  const file=await allowed();const bytes=await readImage(file.storageKey,file.format);await allowed();
+  res.set({'Content-Type':file.mimeType,'Content-Length':String(bytes.length),'Cache-Control':'private, no-store'});res.end(bytes);
 });

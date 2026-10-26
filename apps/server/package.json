@@ -24,7 +24,8 @@
     "db:rehearse-scenes": "tsx --env-file-if-exists=.env scripts/rehearse-scenes-migration.ts",
     "media:cleanup": "tsx --env-file-if-exists=.env scripts/cleanup-media.ts",
     "test:storage-outage": "tsx --env-file-if-exists=.env scripts/check-storage-outage.ts",
-    "db:restore-foundation": "tsx --env-file-if-exists=.env scripts/restore-foundation-backup.ts"
+    "db:restore-foundation": "tsx --env-file-if-exists=.env scripts/restore-foundation-backup.ts",
+    "test:tokens": "tsx --env-file-if-exists=.env scripts/check-tokens.ts"
   },
   "dependencies": {
     "@dnd/shared": "^0.0.0",

@@ -48,12 +48,13 @@ export function createRooms(server: HttpServer) {
     return member;
   }
   async function publishLocation(id: string, invalidate = false) {
-    const state = await activeSnapshot(id);
+    const playerState = await activeSnapshot(id, 'PLAYER');
+    const dmState = await activeSnapshot(id, 'DM');
     for (const socket of io.sockets.sockets.values()) {
       if (!socket.rooms.has(roomName(id))) continue;
       try {
         const member = await authorize(socket);
-        socket.emit('location:snapshot', state);
+        socket.emit('location:snapshot', member.role === 'DM' ? dmState : playerState);
         if (invalidate && member.role === 'DM') socket.emit('locations:changed');
       } catch { socket.disconnect(true); }
     }
@@ -111,6 +112,13 @@ export function createRooms(server: HttpServer) {
       if (!result.count) throw new PublicError('Стан уже змінився. Оновлено до останньої версії; повторіть дію.');
     }
     socket.on('room:sync', ack => command(ack, async () => { await authorize(socket); await snapshot(id); await publishLocation(id); }));
+    socket.on('location:ping', (data, ack) => command(ack, async () => {
+      const parsed = z.object({sceneId:z.string().uuid(),x:z.number().min(0).max(100000),y:z.number().min(0).max(100000)}).safeParse(data);
+      if(!parsed.success) throw new PublicError('Некоректний пінг.');
+      const member=await authorize(socket); const state=await activeSnapshot(id);
+      if(state.scene?.id!==parsed.data.sceneId || parsed.data.x>state.scene.width || parsed.data.y>state.scene.height) throw new PublicError('Локація змінилася.');
+      io.to(roomName(id)).emit('location:ping',{...parsed.data,id:randomUUID(),userId:member.userId,displayName:member.user.displayName});
+    }));
     socket.on('token:move', (data, ack) => command(ack, async () => {
       const parsed = point.extend({ version }).safeParse(data);
       if (!parsed.success) throw new PublicError('Некоректні координати.');

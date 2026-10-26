@@ -10,10 +10,10 @@ if (dirname(path) !== resolve('../../.backups') || !path.endsWith('.json')) thro
 const bytes = await readFile(path, 'utf8');
 assert.equal(createHash('sha256').update(bytes).digest('hex'), (await readFile(`${path}.sha256`, 'utf8')).trim());
 const backup = JSON.parse(bytes) as { format: string; data: Record<string, Record<string, unknown>[]>; migrations: Record<string, string> };
-assert.equal(backup.format, 'scene-foundation-v1');
+assert.ok(['scene-foundation-v1','table-foundation-v2'].includes(backup.format));
 const schema = `scene_recovery_${randomUUID().replaceAll('-', '')}`;
 const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
-const tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite', '_prisma_migrations'];
+const tables = ['User', 'Campaign', 'Session', 'CampaignMember', 'Invite','MediaFile','Scene','Token', '_prisma_migrations'].filter(table=>backup.data[table]);
 const client = new Client({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL });
 try {
   await client.connect(); await client.query('BEGIN');
@@ -23,8 +23,11 @@ try {
   for (const table of tables) {
     for (const row of backup.data[table]!) {
       const columns = Object.keys(row);
-      await client.query(`INSERT INTO ${quote(schema)}.${quote(table)} (${columns.map(quote).join(',')}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(',')})`, columns.map(column => row[column]));
+      await client.query(`INSERT INTO ${quote(schema)}.${quote(table)} (${columns.map(quote).join(',')}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(',')})`, columns.map(column => table==='Campaign'&&column==='activeLocationId'?null:row[column]));
     }
+  }
+  for(const row of backup.data.Campaign??[]) if(row.activeLocationId)await client.query(`UPDATE ${quote(schema)}."Campaign" SET "activeLocationId"=$1 WHERE id=$2`,[row.activeLocationId,row.id]);
+  for(const table of tables){
     const restored = (await client.query(`SELECT * FROM ${quote(schema)}.${quote(table)}`)).rows;
     const canonical = (rows: unknown[]) => JSON.stringify(rows.map(row => JSON.stringify(row)).sort());
     assert.equal(canonical(restored), canonical(backup.data[table]!));

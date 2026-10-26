@@ -6,12 +6,14 @@ export type Snapshot = { version: number; state: RoomState; members: RoomMember[
 export type Reply = { ok: true } | { ok: false; message: string };
 export type Ping = Point & { userId: string; displayName: string; id: string };
 export interface ClientEvents {
+  'location:ping': (data: {sceneId: string; x: number; y: number}, ack: (reply: Reply) => void) => void;
   'room:sync': (ack: (reply: Reply) => void) => void;
   'token:move': (data: Point & { version: number }, ack: (reply: Reply) => void) => void;
   'scene:change': (data: { scene: SceneId; version: number }, ack: (reply: Reply) => void) => void;
   'player:ping': (data: Point, ack: (reply: Reply) => void) => void;
 }
 export interface ServerEvents {
+  'location:ping': (ping: import('./locations.js').LocationPing) => void;
   'location:snapshot': (snapshot: import('./locations.js').LocationSnapshot) => void;
   'locations:changed': () => void;
   'room:snapshot': (snapshot: Snapshot) => void;
