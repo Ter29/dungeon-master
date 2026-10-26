@@ -38,4 +38,18 @@ Before migration, a repeatable-read backup was restored into an isolated schema,
 
 ## Deployment
 
-Target remains https://dungeon-master-tvra.onrender.com, existing Render service `srv-dbfb4l8m7kps738e51c0` in the previously confirmed workspace. No new services, domains, storage providers or secrets required. Deployment and live HTTPS/WSS verification pending at document creation; final results appended below.
+Target remains https://dungeon-master-tvra.onrender.com, existing Render service `srv-dbfb4l8m7kps738e51c0` in the previously confirmed workspace. No new services, domains, storage providers or secrets required. Runtime commit `d4b674db7a0b821d207fc10f7a1a2f5107b4c551`, deploy `dep-dbfl8rei0phs73b3mt30`, status **live** (2026-10-26 13:25 UTC).
+
+
+Final verification output:
+
+- `npm run typecheck`: passed all three workspaces.
+- `npm run build`: Vite/TypeScript and Prisma generation passed.
+- `test:auth`, `test:campaigns`, `test:rooms`, `test:scenes`, `test:tokens`, `test:production`: PASS. The production script is a local proxy simulation; public transport is verified separately below.
+- `npm run test:fog -w @dnd/server`: PASS with local server restart.
+- `npm run test:fog -w @dnd/server -- https://dungeon-master-tvra.onrender.com`: PASS public HTTPS/WSS DM + 3 Players, brush/rectangle/all operations, independent masks, oversized-operation/point rejection, stale versions, API/socket/image privacy, reconnect, pings and token CRUD.
+- `npm run test:live -w @dnd/server`: PASS public certificate, registration/login, secure cookies, invitations, DM + 3 registered Players, presence, synchronization, permissions and reconnect.
+- Explicit public API comparison: pre-deployment PNG location, two tokens and drawn fog revision 3 persisted through the Render deployment; mask exactly matches PostgreSQL. Browser Player Preview shows Hero and excludes Enemy with fully opaque black fog. Screenshot: ignored `.backups/fog-player-preview.png`.
+- `db:restore-foundation -- ../../.backups/pre-table-foundation-1793020553901.json --verify-only`: PASS twice; isolated recovery schema removed, public schema unchanged. `db:status`: six migrations, schema up to date.
+
+The four concurrent clients are automated independent authenticated sessions, not four physical PCs. Local browser gestures cover Pan/Zoom coordinate conversion; live transport tests cover server synchronization. Initial SQL constraint failure was corrected before deployment, and no failed checks remain. Free Render's normal sleep/cold-start behavior is unchanged. All disposable API-test users/campaigns/images are removed; the browser fixture is cleaned after the screenshot.
