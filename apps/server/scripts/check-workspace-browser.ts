@@ -321,6 +321,19 @@ try {
   );
   await mkdir(output, { recursive: true });
   async function shot(page: Page, name: string) {
+    // SVG image layout is ready before its authenticated background finishes.
+    // Wait for visible background bytes, not merely the canvas element.
+    await page.locator("svg image:visible").evaluateAll(async (images) => {
+      await Promise.all(
+        images.map(async (el) => {
+          const source = (el as SVGImageElement).href.baseVal;
+          if (!source) return;
+          const image = new Image();
+          image.src = source;
+          await image.decode();
+        }),
+      );
+    });
     await page.screenshot({
       path: resolve(output, name + ".png"),
       fullPage: false,
