@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {initiativeOrder,advanceTurn,turnAfterRemoval} from '../src/combat/engine.js';
+const roster=[{id:'a',initiative:15,joinOrder:0,position:0},{id:'b',initiative:15,joinOrder:1,position:1},{id:'c',initiative:22,joinOrder:2,position:2}];
+assert.deepEqual(initiativeOrder(roster).map(p=>p.id),['c','a','b']);
+assert.deepEqual(advanceTurn(roster,{round:1,currentParticipantId:'a'},'PREVIOUS'),{round:1,currentParticipantId:'a'});
+assert.deepEqual(advanceTurn(roster,{round:1,currentParticipantId:'c'},'NEXT'),{round:2,currentParticipantId:'a'});
+assert.deepEqual(advanceTurn(roster,{round:2,currentParticipantId:'a'},'PREVIOUS'),{round:1,currentParticipantId:'c'});
+assert.deepEqual(advanceTurn(roster,{round:1,currentParticipantId:'b'},'SKIP'),{round:1,currentParticipantId:'c'});
+assert.deepEqual(advanceTurn([roster[0]!],{round:1,currentParticipantId:'a'},'NEXT'),{round:2,currentParticipantId:'a'});
+assert.deepEqual(turnAfterRemoval(roster,{round:3,currentParticipantId:'b'},'a'),{round:3,currentParticipantId:'b'});
+assert.deepEqual(turnAfterRemoval(roster,{round:3,currentParticipantId:'b'},'b'),{round:3,currentParticipantId:'c'});
+assert.deepEqual(turnAfterRemoval(roster,{round:3,currentParticipantId:'c'},'c'),{round:4,currentParticipantId:'a'});
+assert.deepEqual(turnAfterRemoval([roster[0]!],{round:3,currentParticipantId:'a'},'a'),{round:3,currentParticipantId:null});
+assert.deepEqual(advanceTurn([],{round:1,currentParticipantId:null},'NEXT'),{round:1,currentParticipantId:null});
+const expanded={round:1,currentParticipantId:'a',participants:roster,status:'ACTIVE'};
+assert.deepEqual(advanceTurn(roster,expanded,'PREVIOUS'),{round:1,currentParticipantId:'a'});
+assert.deepEqual(turnAfterRemoval(roster,expanded,'b'),{round:1,currentParticipantId:'a'});
+console.log('PASS combat engine: initiative/tie order, next/previous/skip, round floor/wrap, zero/one participants, current/non-current/last removal.');

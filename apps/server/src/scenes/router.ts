@@ -1,3 +1,4 @@
+import {bumpCombat,removeTokenFromCombat} from '../combat/service.js';
 import { Router, type RequestHandler } from 'express';
 import multer from 'multer';
 import { rateLimit } from 'express-rate-limit';
@@ -60,6 +61,7 @@ async function currentScene(tx: Prisma.TransactionClient, campaignId: string, id
 }
 async function bumpIfActive(tx: Prisma.TransactionClient, campaignId: string, sceneId: string) {
   await tx.campaign.updateMany({ where: { id: campaignId, activeLocationId: sceneId }, data: { locationVersion: { increment: 1 } } });
+  if(await tx.combatEncounter.findFirst({where:{campaignId,sceneId,status:{in:['PREPARING','ACTIVE']}},select:{id:true}}))await bumpCombat(tx,campaignId);
 }
 function notify(campaignId: string) { locationEvents.emit('changed', campaignId); }
 
@@ -103,6 +105,7 @@ sceneRouter.delete('/:sceneId', dm, validScene, limit, async (req, res) => {
     await tx.campaign.updateMany({ where: { id: scene.campaignId, activeLocationId: scene.id }, data: { activeLocationId: null, locationVersion: { increment: 1 } } });
     const tokens = await tx.token.findMany({where:{sceneId:scene.id},select:{imageId:true}});
     const ids=[scene.backgroundId,...tokens.map(token=>token.imageId)].filter((id):id is string=>Boolean(id));
+    if(await tx.combatEncounter.findFirst({where:{sceneId:scene.id,status:{in:['PREPARING','ACTIVE']}},select:{id:true}}))await bumpCombat(tx,scene.campaignId);
     await tx.scene.delete({ where: { id: scene.id } });
     await tx.mediaFile.updateMany({where:{id:{in:ids}},data:{deletedAt:new Date()}});
     return ids;
@@ -230,6 +233,7 @@ sceneRouter.delete('/:sceneId/tokens/:tokenId',dm,validScene,tableLimit,async(re
   const imageId=await locked(res.locals.campaignId,async tx=>{
     const scene=await currentScene(tx,res.locals.campaignId,res.locals.sceneId);
     const token=await findToken(tx,scene.id,String(req.params.tokenId),data.revision);
+    await removeTokenFromCombat(tx,token.id);
     await tx.token.delete({where:{id:token.id}});
     if(token.imageId) await tx.mediaFile.update({where:{id:token.imageId},data:{deletedAt:new Date()}});
     await bumpTable(tx,scene.campaignId,scene.id);return token.imageId;

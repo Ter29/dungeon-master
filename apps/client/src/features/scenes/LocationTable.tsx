@@ -1,12 +1,15 @@
+import {CombatPanel} from '../combat/CombatPanel';
 import { useEffect, useState, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientEvents, ServerEvents, LocationSnapshot, RoomMember, LocationPing } from '@dnd/shared';
+import type { ClientEvents, ServerEvents, CombatSnapshot, LocationSnapshot, RoomMember, LocationPing } from '@dnd/shared';
 import { LocationManager } from './LocationManager';
 import { InteractiveMap } from './InteractiveMap';
 import { TokenManager } from './TokenManager';
 import {api,errorMessage} from '../../lib/api';
 
 export function LocationTable({ campaignId, role }: { campaignId: string; role: 'DM' | 'PLAYER' }) {
+  const [combat,setCombat]=useState<CombatSnapshot|null>(null);
+  function acceptCombat(snapshot:CombatSnapshot){setCombat(previous=>!previous||(snapshot.version>=previous.version&&snapshot.locationVersion>=previous.locationVersion)?snapshot:previous);}
   const [state, setState] = useState<LocationSnapshot | null>(null);
   const [status, setStatus] = useState('Підключення…');
   const [online, setOnline] = useState<RoomMember[]>([]);
@@ -21,16 +24,17 @@ export function LocationTable({ campaignId, role }: { campaignId: string; role: 
   useEffect(() => {
     const socket: Socket<ServerEvents, ClientEvents> = io({ auth: { campaignId }, autoConnect: false });
     connection.current=socket;
-    setState(null); setOnline([]); setStatus('Підключення…');
+    setCombat(null);setState(null); setOnline([]); setStatus('Підключення…');
     socket.on('location:snapshot', snapshot => {
       setState(previous => !previous || snapshot.version >= previous.version ? snapshot : previous);
       setStatus('Онлайн');
     });
+    socket.on('combat:snapshot',acceptCombat);
     socket.on('room:snapshot', snapshot => setOnline(snapshot.members));
     socket.on('location:ping',setPulse);
     socket.on('locations:changed', () => setRevision(value => value + 1));
-    socket.on('disconnect', () => { setState(null); setStatus('З’єднання втрачено. Перепідключення…'); });
-    socket.on('connect_error', error => { setState(null); setStatus(error.message); });
+    socket.on('disconnect', () => { setCombat(null);setState(null); setStatus('З’єднання втрачено. Перепідключення…'); });
+    socket.on('connect_error', error => { setCombat(null);setState(null); setStatus(error.message); });
     socket.on('room:error', setStatus);
     socket.connect();
     return () => { connection.current=null;socket.removeAllListeners(); socket.disconnect(); };
@@ -38,6 +42,7 @@ export function LocationTable({ campaignId, role }: { campaignId: string; role: 
   return <section aria-label="Ігровий стіл"><h3>Ігровий стіл</h3>
     <p role="status">{status} <button onClick={() => setRetry(value => value + 1)}>Перепідключитися</button></p>
     <ul>{online.map(member => <li key={member.userId}>{member.displayName} · {member.role === 'DM' ? 'DM' : 'Гравець'} · {member.online ? 'онлайн' : 'офлайн'}</li>)}</ul>
+    <CombatPanel campaignId={campaignId} dm={role==='DM'} scene={state?.scene??null} snapshot={combat} ready={Boolean(connection.current?.connected)&&Boolean(combat)} onSnapshot={acceptCombat} onSync={()=>{connection.current?.timeout(10000).emit('room:sync',()=>{});}}/>
     {!state ? <p>Очікуємо актуальний стан локації…</p> : !state.scene ? <p>Ігровий стіл порожній. DM ще не показав локацію.</p> : <article>
       <h4>{state.scene.name}</h4><p style={{ whiteSpace: 'pre-wrap' }}>{state.scene.description}</p>
       {tableError&&<p role="alert">{tableError}</p>}

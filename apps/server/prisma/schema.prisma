@@ -39,21 +39,23 @@ model Session {
 }
 
 model Campaign {
+  encounters       CombatEncounter[]
+  combatVersion    Int               @default(0)
   sharedMaps       SharedMap[]
   mapFragments     MapFragment[]
-  id               String           @id @default(uuid()) @db.Uuid
-  name             String           @db.VarChar(120)
-  version          Int              @default(0)
-  roomState        Json             @default("{\"activeScene\":\"scene-1\",\"positions\":{\"scene-1\":{\"x\":50,\"y\":50},\"scene-2\":{\"x\":50,\"y\":50}}}")
-  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
+  id               String            @id @default(uuid()) @db.Uuid
+  name             String            @db.VarChar(120)
+  version          Int               @default(0)
+  roomState        Json              @default("{\"activeScene\":\"scene-1\",\"positions\":{\"scene-1\":{\"x\":50,\"y\":50},\"scene-2\":{\"x\":50,\"y\":50}}}")
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
   members          CampaignMember[]
   invites          Invite[]
-  locations        Scene[]          @relation("CampaignScenes")
+  locations        Scene[]           @relation("CampaignScenes")
   mediaFiles       MediaFile[]
-  activeLocationId String?          @db.Uuid
-  activeLocation   Scene?           @relation("ActiveLocation", fields: [activeLocationId], references: [id], onDelete: SetNull)
-  locationVersion  Int              @default(0)
+  activeLocationId String?           @db.Uuid
+  activeLocation   Scene?            @relation("ActiveLocation", fields: [activeLocationId], references: [id], onDelete: SetNull)
+  locationVersion  Int               @default(0)
 }
 
 model CampaignMember {
@@ -85,25 +87,26 @@ model Invite {
 }
 
 model Scene {
-  fogMask       String     @default("") @db.VarChar(4096)
-  fogRevision   Int        @default(0)
-  gridVisible   Boolean    @default(false)
-  gridSize      Float      @default(50)
-  gridOffsetX   Float      @default(0)
-  gridOffsetY   Float      @default(0)
-  tableRevision Int        @default(0)
+  encounters    CombatEncounter[]
+  fogMask       String            @default("") @db.VarChar(4096)
+  fogRevision   Int               @default(0)
+  gridVisible   Boolean           @default(false)
+  gridSize      Float             @default(50)
+  gridOffsetX   Float             @default(0)
+  gridOffsetY   Float             @default(0)
+  tableRevision Int               @default(0)
   tokens        Token[]
-  id            String     @id @default(uuid()) @db.Uuid
-  campaignId    String     @db.Uuid
-  name          String     @db.VarChar(120)
-  description   String     @default("") @db.VarChar(4000)
-  backgroundId  String?    @unique @db.Uuid
-  revision      Int        @default(0)
-  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
-  campaign      Campaign   @relation("CampaignScenes", fields: [campaignId], references: [id], onDelete: Cascade)
-  background    MediaFile? @relation(fields: [backgroundId], references: [id], onDelete: SetNull)
-  activeIn      Campaign[] @relation("ActiveLocation")
+  id            String            @id @default(uuid()) @db.Uuid
+  campaignId    String            @db.Uuid
+  name          String            @db.VarChar(120)
+  description   String            @default("") @db.VarChar(4000)
+  backgroundId  String?           @unique @db.Uuid
+  revision      Int               @default(0)
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @db.Timestamptz(3)
+  campaign      Campaign          @relation("CampaignScenes", fields: [campaignId], references: [id], onDelete: Cascade)
+  background    MediaFile?        @relation(fields: [backgroundId], references: [id], onDelete: SetNull)
+  activeIn      Campaign[]        @relation("ActiveLocation")
 
   @@index([campaignId])
 }
@@ -136,20 +139,21 @@ enum TokenKind {
 }
 
 model Token {
-  id        String     @id @default(uuid()) @db.Uuid
-  sceneId   String     @db.Uuid
-  name      String     @db.VarChar(80)
-  kind      TokenKind  @default(NPC)
-  x         Float      @default(50)
-  y         Float      @default(50)
-  size      Float      @default(50)
-  hidden    Boolean    @default(true)
-  revision  Int        @default(0)
-  imageId   String?    @unique @db.Uuid
-  createdAt DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime   @updatedAt @db.Timestamptz(3)
-  scene     Scene      @relation(fields: [sceneId], references: [id], onDelete: Cascade)
-  image     MediaFile? @relation(fields: [imageId], references: [id], onDelete: SetNull)
+  combatParticipants CombatParticipant[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  sceneId            String              @db.Uuid
+  name               String              @db.VarChar(80)
+  kind               TokenKind           @default(NPC)
+  x                  Float               @default(50)
+  y                  Float               @default(50)
+  size               Float               @default(50)
+  hidden             Boolean             @default(true)
+  revision           Int                 @default(0)
+  imageId            String?             @unique @db.Uuid
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  scene              Scene               @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  image              MediaFile?          @relation(fields: [imageId], references: [id], onDelete: SetNull)
 
   @@index([sceneId, hidden])
 }
@@ -218,4 +222,49 @@ model MapElement {
 
   @@index([mapId])
   @@index([fragmentId])
+}
+
+enum CombatStatus {
+  PREPARING
+  ACTIVE
+  ENDED
+}
+
+model CombatEncounter {
+  id                   String              @id @default(uuid()) @db.Uuid
+  campaignId           String              @db.Uuid
+  sceneId              String              @db.Uuid
+  status               CombatStatus        @default(PREPARING)
+  round                Int                 @default(1)
+  version              Int                 @default(0)
+  manualOrder          Boolean             @default(false)
+  nextSequence         Int                 @default(0)
+  currentParticipantId String?             @unique @db.Uuid
+  createdAt            DateTime            @default(now()) @db.Timestamptz(3)
+  startedAt            DateTime?           @db.Timestamptz(3)
+  endedAt              DateTime?           @db.Timestamptz(3)
+  campaign             Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  scene                Scene               @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  participants         CombatParticipant[] @relation("Roster")
+  currentParticipant   CombatParticipant?  @relation("CurrentTurn", fields: [currentParticipantId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, status])
+  @@index([sceneId])
+}
+
+model CombatParticipant {
+  id          String           @id @default(uuid()) @db.Uuid
+  encounterId String           @db.Uuid
+  tokenId     String           @db.Uuid
+  initiative  Int              @default(0)
+  joinOrder   Int
+  position    Int
+  encounter   CombatEncounter  @relation("Roster", fields: [encounterId], references: [id], onDelete: Cascade)
+  token       Token            @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  currentIn   CombatEncounter? @relation("CurrentTurn")
+
+  @@unique([encounterId, tokenId])
+  @@unique([encounterId, joinOrder])
+  @@index([encounterId, position])
+  @@index([tokenId])
 }

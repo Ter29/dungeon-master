@@ -71,7 +71,7 @@ export function LocationManager({ campaignId, refreshKey }: { campaignId: string
         <label>PNG/JPG, до 8 МіБ і 20 мегапікселів <input type="file" name="file" accept="image/png,image/jpeg" required /></label>{' '}
         <button>{busy ? 'Завантаження…' : selected.background ? 'Замінити фон' : 'Завантажити фон'}</button>
       </fieldset></form>
-      {!deleting ? <button disabled={busy} onClick={() => setDeleting(true)}>Видалити локацію…</button> : <p>Видалити «{selected.name}»? Якщо вона активна, стіл стане порожнім.{' '}
+      {!deleting ? <button disabled={busy} onClick={() => setDeleting(true)}>Видалити локацію…</button> : <p>Видалити «{selected.name}»? Її токени та прив’язані бої також будуть видалені. Якщо вона активна, стіл стане порожнім.{' '}
         <button disabled={busy} onClick={() => void run(async () => { await api(`${base}/${selected.id}`, { revision: selected.revision }, 'DELETE'); edit(null); })}>Так, видалити</button>{' '}
         <button disabled={busy} onClick={() => setDeleting(false)}>Скасувати</button>
       </p>}

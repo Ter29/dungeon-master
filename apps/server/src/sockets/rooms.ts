@@ -1,3 +1,4 @@
+import {combatEvents,combatSnapshots} from '../combat/state.js';
 import {cartographyEvents} from '../cartography/state.js';
 import type { Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -60,8 +61,18 @@ export function createRooms(server: HttpServer) {
       } catch { socket.disconnect(true); }
     }
   }
+  async function publishCombat(id:string){
+    const views=await combatSnapshots(id);
+    for(const socket of io.sockets.sockets.values()){
+      if(!socket.rooms.has(roomName(id)))continue;
+      try{const member=await authorize(socket);socket.emit('combat:snapshot',views[member.role]);}catch{socket.disconnect(true);}
+    }
+  }
+  const onCombatChanged=(id:string)=>{void enqueue(id,()=>publishCombat(id)).catch(()=>{io.to(roomName(id)).emit('room:error','Не вдалося оновити бій. Перепідключіться.');});};
+  combatEvents.on('changed',onCombatChanged);
+  io.engine.once('close',()=>combatEvents.off('changed',onCombatChanged));
   const onLocationsChanged = (id: string) => {
-    void enqueue(id, () => publishLocation(id, true)).catch(() => {
+    void enqueue(id, async () => {await publishLocation(id, true);await publishCombat(id);}).catch(() => {
       io.to(roomName(id)).emit('room:error', 'Не вдалося оновити локацію. Перепідключіться.');
     });
   };
@@ -94,6 +105,7 @@ export function createRooms(server: HttpServer) {
       await socket.join(roomName(id));
       await snapshot(id);
       await publishLocation(id);
+      await publishCombat(id);
     }).catch(() => { socket.emit('room:error', 'Не вдалося завантажити кімнату.'); socket.disconnect(true); });
     function command(ack: unknown, task: () => Promise<void>) {
       if (typeof ack !== 'function') return;
@@ -115,7 +127,7 @@ export function createRooms(server: HttpServer) {
       await snapshot(id);
       if (!result.count) throw new PublicError('Стан уже змінився. Оновлено до останньої версії; повторіть дію.');
     }
-    socket.on('room:sync', ack => command(ack, async () => { await authorize(socket); await snapshot(id); await publishLocation(id); }));
+    socket.on('room:sync', ack => command(ack, async () => { await authorize(socket); await snapshot(id); await publishLocation(id); await publishCombat(id); }));
     socket.on('location:ping', (data, ack) => command(ack, async () => {
       const parsed = z.object({sceneId:z.string().uuid(),x:z.number().min(0).max(100000),y:z.number().min(0).max(100000)}).safeParse(data);
       if(!parsed.success) throw new PublicError('Некоректний пінг.');
