@@ -404,7 +404,7 @@ try {
           Math.abs(
             s.video.time -
               (state.video.position +
-                (Date.now() - state.video.startedAt!) / 1000),
+                (state.serverTime! - state.video.startedAt!) / 1000),
           ) < 2,
       );
     },

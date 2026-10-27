@@ -214,7 +214,7 @@ try {
   if (!kit.live) await kit.stop();
   await prisma.videoPlayback.update({
     where: { campaignId: c.id },
-    data: { startedAt: new Date(Date.now() - 60000) },
+    data: { startedAt: new Date(state.serverTime! - (a.duration + 10) * 1000) },
   });
   if (!kit.live) await kit.start();
   state = await kit.json(kit.path("/state"), dm.cookie);

@@ -82,6 +82,29 @@ Local regression PASS: Director, Audio API, Fog/token, Combat and Cartography in
 
 Actual Cloudinary account read before release confirmed **Free**, 0.91/25 credits (3.64%) at the time checked. This is a point-in-time reading, not a future usage guarantee.
 
-Public deployment evidence will be appended after release checks.
+## Production release evidence
+
+- Site unchanged: https://dungeon-master-tvra.onrender.com/
+- Runtime commit: `16ddc91164c89d4792c2b01bea3b8857ddfdaf75`.
+- Final Render deploy: `dep-dbg1ndavcj2c73at7p90`, **live**, finished 2026-10-27 03:35:37 UTC, existing Free service/My Workspace, no secret or plan changes.
+- Confirmed actual served bundle: `assets/index-BoBJCE52.js`; not relying solely on Render's status metadata.
+- `/api/ready` after tests: HTTP 200, `{"status":"ok","database":"connected"}`.
+- Error-level Render logs during the final 03:35:37–03:39:30 UTC verification window: none.
+
+| Public command | Result |
+| --- | --- |
+| `npm run test:live -w @dnd/server` | PASS HTTPS certificate, React deep link, Secure session cookies, DM + 3 registered Players, invite/join, WSS presence, scene/token sync, role/ping permissions, reconnect/reload persistence |
+| `npm run test:video -w @dnd/server -- https://dungeon-master-tvra.onrender.com/` | PASS real MP4 upload, private original/API/WS, exact Range/suffix/416, four sockets, version races/stale commands, controls, elapsed-state recovery, active deletion, metadata, Portrait return/privacy and deleted-target fallback |
+| `npm run test:video-browser -w @dnd/server -- https://dungeon-master-tvra.onrender.com/` | PASS actual H.264 frames/AAC waveform, four browser contexts, simultaneous background channels, single duck/restore, pause/resume/stop/natural end, mute, drift, late join/reconnect, real HTTP error/retry, fullscreen/reduced motion and both resolutions |
+
+All final checks exited 0. Actual process restart was tested locally; the public recovery check advances only its own synthetic campaign timeline and verifies server expiry, without restarting the live service mid-session. Synthetic provider files were deleted by cleanup, and a final read confirmed zero `Video QA` accounts and zero synthetic Video campaigns. No private user media was used.
+
+Screenshots are ignored local artifacts under `C:/Users/smart/Desktop/DnD/.backups/video/public/`: `player-video-1366.png`, `player-video-1920.png`, `dm-video-1366.png`, `dm-video-1920.png`, `player-video-error.png`. They show the deliberately synthetic test pattern, not story content.
+
+Release issues resolved:
+
+1. Initial deployment `dep-dbg1k5cipgvc73e7r990` reported Live but the actual URL still served the previous bundle and lacked Video routes. A cache-busting/no-cache request confirmed this was real served content. Redeploying the same commit with clear build cache corrected it; no code, schema, secret or pricing change was required. Underlying Render rollout cause was not established. The initial cold availability probe timed out; final readiness and tests passed.
+2. The first public expiry test used exactly 60 seconds of the client clock for a clip whose measured duration includes container/audio timing. It was corrected to derive an unquestionably expired timestamp from `serverTime` and actual asset duration, with a safety margin. Drift assertions now also use server time. These are test-only fixes; the deployed playback algorithm was unchanged.
+3. The isolated Chrome autoplay probe permitted playback. Explicit app activation, muted pre-activation design and retry paths are verified; actual policy rejection is not claimed. The existing PostgreSQL driver future SSL-mode warning remains informational; database settings were not altered.
 
 Known MVP limits: progressive MP4 only, no adaptive bitrate/transcoding; approximate time sync, not frame lock; provider/network buffering may delay a client; cached bytes are not retractable; Chrome is the browser tested here, other browser codec support may vary. Video has a separate local volume but uses existing Master/Mute.
