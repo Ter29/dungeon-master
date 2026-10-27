@@ -317,7 +317,7 @@ try {
       .getByRole("button", { name, exact: true })
       .click();
   const output = resolve(
-    "../../.backups/workspace-ui" + (live ? "-public" : ""),
+    "../../.backups/live-polish/after" + (live ? "-public" : ""),
   );
   await mkdir(output, { recursive: true });
   async function shot(page: Page, name: string) {
@@ -341,6 +341,12 @@ try {
     });
   }
   async function check(page: Page, label: string) {
+    assert.ok(
+      await page
+        .locator(".workspace-footer")
+        .evaluate((el) => el.getBoundingClientRect().height <= 78),
+      `${label}: closed audio footer must stay compact`,
+    );
     const bad = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth + 1,
       main:
@@ -428,6 +434,47 @@ try {
     }
     await nav(playerPage, "Table");
     await shot(playerPage, `player-table-${width}`);
+    const fitProof = () =>
+      playerPage
+        .locator('svg[aria-label="Інтерактивна локація: Забутий храм"]')
+        .evaluate((svg) => {
+          const r = svg.getBoundingClientRect(),
+            g = svg.querySelector("g") as SVGGElement,
+            m = g.getScreenCTM()!;
+          const corners = [
+            new DOMPoint(0, 0).matrixTransform(m),
+            new DOMPoint(1024, 1024).matrixTransform(m),
+          ];
+          return corners.every(
+            (p) =>
+              p.x >= r.left - 1 &&
+              p.x <= r.right + 1 &&
+              p.y >= r.top - 1 &&
+              p.y <= r.bottom + 1,
+          );
+        });
+    await playerPage
+      .getByRole("button", { name: "Вмістити карту", exact: true })
+      .click();
+    await wait(fitProof, "fit matches real viewport");
+    await playerPage
+      .getByRole("button", { name: "Занурення", exact: true })
+      .click();
+    await check(playerPage, `Player immersive ${width}`);
+    await wait(fitProof, "immersive Fit");
+    await shot(playerPage, `player-immersive-${width}`);
+    await playerPage.keyboard.press("Escape");
+    await dmPage
+      .getByRole("button", { name: "Жива сесія", exact: true })
+      .click();
+    for (const name of ["Table", "Director", "Audio", "Combat", "Scenes"]) {
+      await nav(dmPage, name);
+      await check(dmPage, `Live ${name} ${width}`);
+      await shot(dmPage, `live-${name.toLowerCase()}-${width}`);
+    }
+    await dmPage
+      .getByRole("button", { name: "Підготовка", exact: true })
+      .click();
     assert.equal(
       await playerPage
         .getByRole("button", { name: "Scenes", exact: true })
@@ -446,12 +493,50 @@ try {
   const camera = await dmPage
     .locator('svg[aria-label="Інтерактивна локація: Забутий храм"]>g')
     .getAttribute("transform");
+  const cameraCenter = () =>
+    dmPage
+      .locator('svg[aria-label="Інтерактивна локація: Забутий храм"]')
+      .evaluate((svg) => {
+        const r = svg.getBoundingClientRect(),
+          g = svg.querySelector("g") as SVGGElement,
+          p = new DOMPoint(
+            r.x + r.width / 2,
+            r.y + r.height / 2,
+          ).matrixTransform(g.getScreenCTM()!.inverse());
+        return {
+          x: p.x,
+          y: p.y,
+          scale: Number(
+            g.getAttribute("transform")!.match(/scale\(([^)]+)/)![1],
+          ),
+        };
+      });
+  const priorCenter = await cameraCenter();
+  await dmPage.getByRole("button", { name: "Жива сесія", exact: true }).click();
+  await dmPage.getByRole("button", { name: "Занурення", exact: true }).click();
+  await wait(async () => {
+    const n = await cameraCenter();
+    return (
+      Math.abs(n.x - priorCenter.x) < 0.2 &&
+      Math.abs(n.y - priorCenter.y) < 0.2 &&
+      n.scale === priorCenter.scale
+    );
+  }, "personal camera center and zoom survive mode/immersive resize");
+  await dmPage.keyboard.press("Escape");
+  await dmPage.getByRole("button", { name: "Підготовка", exact: true }).click();
   await nav(dmPage, "Scenes");
   await dmPage
     .getByRole("button", { name: "Забутий храм", exact: true })
     .click();
   const title = dmPage.getByRole("textbox", { name: "Назва", exact: true });
   await title.fill("Чернетка храму");
+  await dmPage.getByRole("button", { name: "Жива сесія", exact: true }).click();
+  await dmPage.getByRole("button", { name: "Підготовка", exact: true }).click();
+  assert.equal(
+    await title.inputValue(),
+    "Чернетка храму",
+    "mode switch retains editor draft",
+  );
   await dmPage.getByText("Є незбережені зміни", { exact: true }).waitFor();
   await nav(dmPage, "Table");
   assert.equal(
@@ -530,12 +615,42 @@ try {
     "Preview remains private",
   );
   await dmPage
-    .getByRole("button", { name: "Show to Players", exact: true })
+    .getByRole("button", { name: "Показати гравцям", exact: true })
     .click();
   await playerPage.locator("[data-presentation-mode=ILLUSTRATION]").waitFor();
+  await playerPage
+    .locator("[data-presentation-mode=ILLUSTRATION] img")
+    .evaluate(async (img) => {
+      await (img as HTMLImageElement).decode();
+    });
+  await wait(
+    async () =>
+      playerPage
+        .locator("[data-presentation-mode=ILLUSTRATION] .director-fade")
+        .evaluate((el) => Number(getComputedStyle(el).opacity) === 1),
+    "Player illustration visibly rendered",
+  );
+  const imagePattern = `**${readyMaterial.image.url}*`;
+  await playerPage.route(imagePattern, (route) =>
+    route.fulfill({ status: 503, body: "Unavailable" }),
+  );
+  await playerPage.reload({ waitUntil: "domcontentloaded" });
+  await playerPage
+    .getByRole("button", { name: "Повторити завантаження", exact: true })
+    .waitFor();
+  await shot(playerPage, "player-illustration-error");
+  await playerPage.unroute(imagePattern);
+  await playerPage
+    .getByRole("button", { name: "Повторити завантаження", exact: true })
+    .click();
+  await playerPage
+    .locator("[data-presentation-mode=ILLUSTRATION] img")
+    .evaluate(async (img) => {
+      await (img as HTMLImageElement).decode();
+    });
   await shot(playerPage, "player-illustration-1366");
   await dmPage
-    .getByRole("button", { name: "Повернути до Table Mode", exact: true })
+    .getByRole("button", { name: "Повернути до стола", exact: true })
     .click();
   await playerPage
     .locator(".director-fullscreen")
@@ -557,7 +672,7 @@ try {
   await dmPage
     .locator(".audio-channel")
     .first()
-    .getByRole("button", { name: "Play / Перехід", exact: true })
+    .getByRole("button", { name: "Відтворити / Перехід", exact: true })
     .click();
   await wait(
     async () =>
@@ -584,7 +699,9 @@ try {
     })
     .waitFor();
   await nav(dmPage, "Combat");
-  await dmPage.getByRole("button", { name: "Next Turn", exact: true }).click();
+  await dmPage
+    .getByRole("button", { name: "Наступний хід", exact: true })
+    .click();
   await wait(
     async () =>
       (await request(prefix + "/combat")).encounter.currentParticipantId !==

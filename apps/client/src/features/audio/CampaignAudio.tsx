@@ -29,7 +29,8 @@ export function CampaignAudio({
   refresh: () => void;
 }) {
   const { user } = useAuth();
-  const updateWorkspace = useWorkspace()?.update;
+  const workspace = useWorkspace(),
+    updateWorkspace = workspace?.update;
   const favoritesKey = `obsidian-sfx:${user?.id}:${campaignId}`;
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
@@ -162,60 +163,64 @@ export function CampaignAudio({
   }
   return (
     <>
-      <aside className="audio-personal" aria-label="Особистий звук">
-        <button onClick={() => void engine.current?.enable()}>
-          Увімкнути звук
-        </button>
-        <p
-          className={
-            /заблок|недоступ|не почал|призупинив|не вдало/i.test(status)
-              ? "audio-error"
-              : "audio-state"
-          }
-          role="status"
-        >
-          {/Відтворюється/.test(status)
-            ? "● Відтворюється"
-            : /Тиша/.test(status)
-              ? "○ Тиша"
-              : /^Натисніть/.test(status)
-                ? "○ Звук ще не активовано"
-                : status}
-        </p>
-        <details>
-          <summary>♫ Гучність і стан</summary>
-          <p>
-            {state
-              ? "Аудіостан синхронізовано."
-              : "З’єднання відновлюється; відтворення призупинено."}
+      <WorkspaceArea name="audio.footer">
+        <aside className="audio-personal" aria-label="Особистий звук">
+          <button onClick={() => void engine.current?.enable()}>
+            Увімкнути звук
+          </button>
+          <p
+            className={
+              /заблок|недоступ|не почал|призупинив|не вдало/i.test(status)
+                ? "audio-error"
+                : "audio-state"
+            }
+            role="status"
+          >
+            {/Відтворюється/.test(status)
+              ? "● Відтворюється"
+              : /Тиша/.test(status)
+                ? "○ Тиша"
+                : /^Натисніть/.test(status)
+                  ? "○ Звук ще не активовано"
+                  : status}
           </p>
-          <label>
-            <input
-              type="checkbox"
-              checked={local.muted}
-              onChange={(e) => setLocal({ ...local, muted: e.target.checked })}
-            />{" "}
-            Mute
-          </label>
-          {(["master", "music", "ambience", "sfx"] as const).map((k) => (
-            <label className="audio-volume" key={k}>
-              {k}{" "}
+          <details>
+            <summary>♫ Гучність і стан</summary>
+            <p>
+              {state
+                ? "Аудіостан синхронізовано."
+                : "З’єднання відновлюється; відтворення призупинено."}
+            </p>
+            <label>
               <input
-                aria-label={`${k} volume`}
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={local[k]}
+                type="checkbox"
+                checked={local.muted}
                 onChange={(e) =>
-                  setLocal({ ...local, [k]: Number(e.target.value) })
+                  setLocal({ ...local, muted: e.target.checked })
                 }
-              />
-              <output>{Math.round(local[k] * 100)}%</output>
+              />{" "}
+              Без звуку
             </label>
-          ))}
-        </details>
-      </aside>
+            {(["master", "music", "ambience", "sfx"] as const).map((k) => (
+              <label className="audio-volume" key={k}>
+                {k}{" "}
+                <input
+                  aria-label={`${k} volume`}
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={local[k]}
+                  onChange={(e) =>
+                    setLocal({ ...local, [k]: Number(e.target.value) })
+                  }
+                />
+                <output>{Math.round(local[k] * 100)}%</output>
+              </label>
+            ))}
+          </details>
+        </aside>
+      </WorkspaceArea>
       {dm && (
         <WorkspaceArea name="audio.main">
           <section className="audio-dashboard">
@@ -311,154 +316,175 @@ export function CampaignAudio({
       )}
       {dm && (
         <WorkspaceArea name="audio.context">
-          <details open>
-            <summary>Бібліотека аудіо</summary>
-            <p>
-              MP3 / OGG / WAV · до{" "}
-              {Math.round((library?.maxBytes ?? 0) / 1048576)} МіБ · до{" "}
-              {library?.maxDuration ?? 0} с · SFX до{" "}
-              {library?.maxSfxDuration ?? 0} с.
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.currentTarget,
-                  data = new FormData(form);
-                void run(async () => {
-                  await api(`${base}/assets`, data);
-                  form.reset();
-                });
-              }}
-            >
+          <div className="preparation-only">
+            <details open>
+              <summary>Бібліотека аудіо</summary>
+              <p>
+                MP3 / OGG / WAV · до{" "}
+                {Math.round((library?.maxBytes ?? 0) / 1048576)} МіБ · до{" "}
+                {library?.maxDuration ?? 0} с · SFX до{" "}
+                {library?.maxSfxDuration ?? 0} с.
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget,
+                    data = new FormData(form);
+                  void run(async () => {
+                    await api(`${base}/assets`, data);
+                    form.reset();
+                  });
+                }}
+              >
+                <input
+                  name="name"
+                  aria-label="Назва аудіо"
+                  placeholder="Назва аудіо"
+                  maxLength={120}
+                  required
+                />
+                <input
+                  name="description"
+                  aria-label="Опис аудіо"
+                  placeholder="Опис"
+                  maxLength={2000}
+                />
+                <select name="category" aria-label="Категорія аудіо">
+                  {(["MUSIC", "AMBIENCE", "SFX"] as const).map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+                <input
+                  name="file"
+                  aria-label="Аудіофайл"
+                  type="file"
+                  accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav"
+                  required
+                />
+                <button disabled={busy || !library?.storageAvailable}>
+                  Завантажити аудіо
+                </button>
+              </form>
               <input
-                name="name"
-                aria-label="Назва аудіо"
-                placeholder="Назва аудіо"
-                maxLength={120}
-                required
+                aria-label="Пошук аудіо"
+                placeholder="Пошук"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
-              <input
-                name="description"
-                aria-label="Опис аудіо"
-                placeholder="Опис"
-                maxLength={2000}
-              />
-              <select name="category" aria-label="Категорія аудіо">
-                {(["MUSIC", "AMBIENCE", "SFX"] as const).map((c) => (
+              <select
+                aria-label="Фільтр аудіо"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="ALL">Усі категорії</option>
+                {(["MUSIC", "AMBIENCE", "SFX"] as AudioCategory[]).map((c) => (
                   <option key={c}>{c}</option>
                 ))}
               </select>
-              <input
-                name="file"
-                aria-label="Аудіофайл"
-                type="file"
-                accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav"
-                required
-              />
-              <button disabled={busy || !library?.storageAvailable}>
-                Завантажити аудіо
-              </button>
-            </form>
-            <input
-              aria-label="Пошук аудіо"
-              placeholder="Пошук"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <select
-              aria-label="Фільтр аудіо"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option value="ALL">Усі категорії</option>
-              {(["MUSIC", "AMBIENCE", "SFX"] as AudioCategory[]).map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-            {preview && (
-              <div>
-                <p>Приватне прослуховування: {preview.name}</p>
-                <audio key={preview.id} src={preview.url} controls />
-                <button onClick={() => setPreview(null)}>
-                  Закрити Preview
-                </button>
-              </div>
-            )}
-            <ul className="audio-library">
-              {library?.assets
-                .filter(
-                  (a) =>
-                    (category === "ALL" || a.category === category) &&
-                    `${a.name} ${a.description}`
-                      .toLocaleLowerCase()
-                      .includes(search.toLocaleLowerCase()),
-                )
-                .map((a) => (
-                  <li key={`${a.id}:${a.revision}`}>
-                    <strong>{a.name}</strong> · {a.category} ·{" "}
-                    {Math.floor(a.duration / 60)}:
-                    {String(Math.floor(a.duration % 60)).padStart(2, "0")}
-                    <p>{a.description}</p>
-                    <button onClick={() => setPreview(a)}>
-                      Preview · тільки DM
-                    </button>
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const data = new FormData(e.currentTarget);
-                        void run(() =>
-                          api(
-                            `${base}/assets/${a.id}`,
-                            {
-                              name: data.get("name"),
-                              description: data.get("description"),
-                              revision: a.revision,
-                            },
-                            "PATCH",
-                          ),
-                        );
-                      }}
-                    >
-                      <input
-                        name="name"
-                        aria-label={`Назва ${a.name}`}
-                        defaultValue={a.name}
-                        required
-                        maxLength={120}
-                      />
-                      <input
-                        name="description"
-                        aria-label={`Опис ${a.name}`}
-                        defaultValue={a.description}
-                        maxLength={2000}
-                      />
-                      <button disabled={busy}>Зберегти</button>
-                    </form>
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Видалити «${a.name}»? Активне відтворення буде зупинено.`,
-                          )
-                        ) {
-                          setPreview(null);
+              {preview && (
+                <div>
+                  <p>Приватне прослуховування: {preview.name}</p>
+                  <audio key={preview.id} src={preview.url} controls />
+                  <button onClick={() => setPreview(null)}>
+                    Закрити Preview
+                  </button>
+                </div>
+              )}
+              <ul className="audio-library">
+                {library?.assets
+                  .filter(
+                    (a) =>
+                      (category === "ALL" || a.category === category) &&
+                      `${a.name} ${a.description}`
+                        .toLocaleLowerCase()
+                        .includes(search.toLocaleLowerCase()),
+                  )
+                  .map((a) => (
+                    <li key={`${a.id}:${a.revision}`}>
+                      <strong>{a.name}</strong> · {a.category} ·{" "}
+                      {Math.floor(a.duration / 60)}:
+                      {String(Math.floor(a.duration % 60)).padStart(2, "0")}
+                      <p>{a.description}</p>
+                      <button onClick={() => setPreview(a)}>
+                        Preview · тільки DM
+                      </button>
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const data = new FormData(e.currentTarget);
                           void run(() =>
                             api(
                               `${base}/assets/${a.id}`,
-                              { revision: a.revision },
-                              "DELETE",
+                              {
+                                name: data.get("name"),
+                                description: data.get("description"),
+                                revision: a.revision,
+                              },
+                              "PATCH",
                             ),
                           );
-                        }
-                      }}
-                    >
-                      Видалити
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          </details>
+                        }}
+                      >
+                        <input
+                          name="name"
+                          aria-label={`Назва ${a.name}`}
+                          defaultValue={a.name}
+                          required
+                          maxLength={120}
+                        />
+                        <input
+                          name="description"
+                          aria-label={`Опис ${a.name}`}
+                          defaultValue={a.description}
+                          maxLength={2000}
+                        />
+                        <button disabled={busy}>Зберегти</button>
+                      </form>
+                      <button
+                        disabled={busy}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Видалити «${a.name}»? Активне відтворення буде зупинено.`,
+                            )
+                          ) {
+                            setPreview(null);
+                            void run(() =>
+                              api(
+                                `${base}/assets/${a.id}`,
+                                { revision: a.revision },
+                                "DELETE",
+                              ),
+                            );
+                          }
+                        }}
+                      >
+                        Видалити
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </details>
+          </div>
+          <div className="live-only info-card">
+            <h4>Звук під рукою</h4>
+            <p>
+              Зміна композиції та ефекти ліворуч впливають на групу. Повна
+              бібліотека й приватне прослуховування доступні в режимі
+              підготовки.
+            </p>
+            {preview && (
+              <p>
+                Відкрито приватне прослуховування: {preview.name}{" "}
+                <button onClick={() => setPreview(null)}>
+                  Закрити приватне прослуховування
+                </button>
+              </p>
+            )}
+            <button onClick={() => workspace?.setLive(false)}>
+              Відкрити аудіоредактор
+            </button>
+          </div>
         </WorkspaceArea>
       )}
     </>
@@ -512,13 +538,13 @@ function Channel({
           command("PLAY", { assetId: a.id, assetRevision: a.revision, fadeMs });
         }}
       >
-        Play / Перехід
+        Відтворити / Перехід
       </button>
       <button
         disabled={disabled || status !== "PLAYING"}
         onClick={() => command("PAUSE")}
       >
-        Pause
+        Пауза
       </button>
       <button
         disabled={disabled || status !== "PAUSED"}
@@ -527,7 +553,7 @@ function Channel({
         Продовжити
       </button>
       <button disabled={disabled} onClick={() => command("STOP")}>
-        Stop
+        Зупинити
       </button>
       <label>
         <input
@@ -536,7 +562,7 @@ function Channel({
           disabled={disabled}
           onChange={(e) => command("SETTINGS", { loop: e.target.checked })}
         />{" "}
-        Loop
+        Повторювати
       </label>
       <label>
         Fade, с{" "}

@@ -6,6 +6,7 @@ import { CampaignsPage } from "../features/campaigns/CampaignsPage";
 import { CampaignPage } from "../features/campaigns/CampaignWorkspace";
 import { Icon } from "../features/workspace/icons";
 import "./theme.css";
+import './live.css';
 import { JoinPage } from "../features/campaigns/JoinPage";
 
 export function App() {

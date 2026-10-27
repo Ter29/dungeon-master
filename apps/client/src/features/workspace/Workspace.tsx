@@ -21,6 +21,9 @@ type Summary = {
   members: number;
 };
 type WorkspaceState = {
+  live: boolean;
+  immersive: boolean;
+  setLive: (value: boolean) => void;
   section: Section;
   dm: boolean;
   summary: Summary;
@@ -115,6 +118,33 @@ export function CommandCenter({
       members: 0,
     }),
     [error, setError] = useState("");
+  const [live, setLiveState] = useState(() => {
+    try {
+      return !dm || localStorage.getItem(`${preference}:mode`) === "live";
+    } catch {
+      return !dm;
+    }
+  });
+  const [immersive, setImmersive] = useState(false);
+  const setLive = useCallback(
+    (value: boolean) => {
+      setLiveState(value);
+      try {
+        localStorage.setItem(
+          `${preference}:mode`,
+          value ? "live" : "preparation",
+        );
+      } catch {}
+    },
+    [preference],
+  );
+  useEffect(() => {
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setImmersive(false);
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, []);
   const navigate = useCallback(
     (s: Section) => {
       if (!dm && !["table", "maps", "combat", "campaign"].includes(s)) return;
@@ -180,15 +210,31 @@ export function CommandCenter({
       register,
       draft,
       drafts,
+      live,
+      immersive,
+      setLive,
     }),
-    [section, dm, summary, navigate, update, targets, register, draft, drafts],
+    [
+      section,
+      dm,
+      summary,
+      navigate,
+      update,
+      targets,
+      register,
+      draft,
+      drafts,
+      live,
+      immersive,
+      setLive,
+    ],
   );
   const current = allowed.find((s) => s.id === section) ?? allowed[0]!;
   return (
     <Context.Provider value={value}>
       <div
         data-section={section}
-        className={`command-center ${dm ? "dm-workspace" : "player-workspace"} ${collapsed ? "context-collapsed" : ""}`}
+        className={`command-center ${dm ? "dm-workspace" : "player-workspace"} ${collapsed ? "context-collapsed" : ""} ${live ? "session-live" : "session-preparation"} ${immersive ? "immersive-workspace" : ""}`}
         onClickCapture={(e) => {
           const a = (e.target as Element).closest("a");
           if (
@@ -289,6 +335,20 @@ export function CommandCenter({
             </h2>
           </div>
           <div className="workspace-heading-actions">
+            {dm && (
+              <div
+                className="session-switch"
+                role="group"
+                aria-label="Режим роботи"
+              >
+                <button aria-pressed={!live} onClick={() => setLive(false)}>
+                  Підготовка
+                </button>
+                <button aria-pressed={live} onClick={() => setLive(true)}>
+                  Жива сесія
+                </button>
+              </div>
+            )}
             {saved && (
               <span className="saved-pill" role="status">
                 ✓ Зміни збережено
@@ -306,6 +366,13 @@ export function CommandCenter({
             >
               <Icon name="panel" />
               {collapsed ? "Інструменти" : "Згорнути панель"}
+            </button>
+            <button
+              className="quiet-button"
+              aria-pressed={immersive}
+              onClick={() => setImmersive((v) => !v)}
+            >
+              Занурення
             </button>
           </div>
         </div>
@@ -345,6 +412,14 @@ export function CommandCenter({
           ))}
         </aside>
         <footer className="workspace-footer">
+          {immersive && (
+            <button
+              className="quiet-button"
+              onClick={() => setImmersive(false)}
+            >
+              Повернути інтерфейс · Esc
+            </button>
+          )}
           <span>
             <span
               className={`connection-dot ${summary.sync === "Онлайн" ? "connected" : ""}`}
@@ -361,6 +436,7 @@ export function CommandCenter({
           <span>
             OBSIDIAN TABLE <em>·</em> {dm ? "DM" : "PLAYER"}
           </span>
+          <Target name="audio.footer" />
         </footer>
       </div>
     </Context.Provider>

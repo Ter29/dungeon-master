@@ -1,5 +1,6 @@
 import { FogLayer } from "./FogLayer";
-import { WorkspaceArea } from "../workspace/Workspace";
+import { WorkspaceArea, useWorkspace } from "../workspace/Workspace";
+import { fitCamera, resizeCamera, type Viewport } from "./camera";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   tokenInOpenFog,
@@ -27,6 +28,7 @@ export function InteractiveMap({
   pulse: LocationPing | null;
   saveFog: (ops: FogOperation[]) => Promise<void>;
 }) {
+  const live = useWorkspace()?.live ?? false;
   const [fogSaving, setFogSaving] = useState(false);
   async function commitFog(ops: FogOperation[]) {
     if (fogSaving) return;
@@ -48,15 +50,38 @@ export function InteractiveMap({
         tokenInOpenFog(scene.fog.bits, t, scene.width, scene.height)),
   );
   const svg = useRef<SVGSVGElement | null>(null);
-  const fit = () => {
-    const scale = Math.min(1000 / scene.width, 650 / scene.height) * 0.95;
-    return {
-      scale,
-      x: (1000 - scene.width * scale) / 2,
-      y: (650 - scene.height * scale) / 2,
-    };
-  };
+  const [viewport, setViewport] = useState<Viewport>({
+    width: 1000,
+    height: 650,
+  });
+  const viewportRef = useRef(viewport),
+    autoFit = useRef(true);
+  const fit = () => fitCamera(scene.width, scene.height, viewport);
   const [camera, setCamera] = useState<Camera>(fit);
+  function changeCamera(task: (c: Camera) => Camera) {
+    autoFit.current = false;
+    setCamera(task);
+  }
+  useEffect(() => {
+    const el = svg.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const next = { width: 1000, height: (1000 * r.height) / r.width },
+        previous = viewportRef.current;
+      if (Math.abs(next.height - previous.height) < 0.1) return;
+      viewportRef.current = next;
+      setViewport(next);
+      setCamera((c) =>
+        autoFit.current
+          ? fitCamera(scene.width, scene.height, next)
+          : resizeCamera(c, previous, next),
+      );
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scene.width, scene.height]);
   const [preview, setPreview] = useState<(Point & { id: string }) | null>(null);
   const [saving, setSaving] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -68,6 +93,7 @@ export function InteractiveMap({
     moved: boolean;
   } | null>(null);
   useEffect(() => {
+    autoFit.current = true;
     setCamera(fit());
     setPreview(null);
     gesture.current = null;
@@ -105,7 +131,7 @@ export function InteractiveMap({
       point.x = event.clientX;
       point.y = event.clientY;
       const p = point.matrixTransform(element.getScreenCTM()!.inverse());
-      setCamera((c) => {
+      changeCamera((c) => {
         const scale = Math.max(
           0.05,
           Math.min(10, c.scale * Math.exp(-event.deltaY * 0.001)),
@@ -161,66 +187,71 @@ export function InteractiveMap({
     <div className="interactive-table">
       {dm && (
         <WorkspaceArea name="table.context">
-          <fieldset disabled={!ready || fogSaving}>
-            <legend>Fog of War · DM</legend>
-            <label>
-              <input
-                type="checkbox"
-                checked={playerPreview}
-                onChange={(e) => {
-                  setPlayerPreview(e.target.checked);
-                  setTool("camera");
-                }}
-              />{" "}
-              Попередній перегляд Player
-            </label>{" "}
-            <label>
-              Інструмент{" "}
-              <select
-                aria-label="Інструмент туману"
-                value={tool}
+          <details open={!live} className="compact-tool">
+            <summary>Туман війни</summary>
+            <fieldset disabled={!ready || fogSaving}>
+              <legend>Fog of War · DM</legend>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={playerPreview}
+                  onChange={(e) => {
+                    setPlayerPreview(e.target.checked);
+                    setTool("camera");
+                  }}
+                />{" "}
+                Попередній перегляд Player
+              </label>{" "}
+              <label>
+                Інструмент{" "}
+                <select
+                  aria-label="Інструмент туману"
+                  value={tool}
+                  disabled={playerPreview}
+                  onChange={(e) => setTool(e.target.value)}
+                >
+                  <option value="camera">Камера / токени</option>
+                  <option value="reveal-brush">Reveal Brush</option>
+                  <option value="hide-brush">Hide Brush</option>
+                  <option value="reveal-rectangle">Reveal Rectangle</option>
+                  <option value="hide-rectangle">Hide Rectangle</option>
+                </select>
+              </label>{" "}
+              <label>
+                Радіус пензля (px карти){" "}
+                <input
+                  type="number"
+                  min="1"
+                  max="10000"
+                  value={radius}
+                  onChange={(e) =>
+                    setRadius(
+                      Math.max(1, Math.min(10000, Number(e.target.value) || 1)),
+                    )
+                  }
+                />
+              </label>{" "}
+              <button
                 disabled={playerPreview}
-                onChange={(e) => setTool(e.target.value)}
-              >
-                <option value="camera">Камера / токени</option>
-                <option value="reveal-brush">Reveal Brush</option>
-                <option value="hide-brush">Hide Brush</option>
-                <option value="reveal-rectangle">Reveal Rectangle</option>
-                <option value="hide-rectangle">Hide Rectangle</option>
-              </select>
-            </label>{" "}
-            <label>
-              Радіус пензля (px карти){" "}
-              <input
-                type="number"
-                min="1"
-                max="10000"
-                value={radius}
-                onChange={(e) =>
-                  setRadius(
-                    Math.max(1, Math.min(10000, Number(e.target.value) || 1)),
-                  )
+                onClick={() =>
+                  void commitFog([{ kind: "all", mode: "reveal" }])
                 }
-              />
-            </label>{" "}
-            <button
-              disabled={playerPreview}
-              onClick={() => void commitFog([{ kind: "all", mode: "reveal" }])}
-            >
-              Reveal All
-            </button>{" "}
-            <button
-              disabled={playerPreview}
-              onClick={() => void commitFog([{ kind: "all", mode: "hide" }])}
-            >
-              Hide All
-            </button>
-            <p>
-              Shift або середня кнопка — камера під час малювання. Зміни
-              зберігаються після відпускання кнопки.
-            </p>
-            {fogSaving && <p role="status">Зберігаємо туман…</p>}
-          </fieldset>
+              >
+                Reveal All
+              </button>{" "}
+              <button
+                disabled={playerPreview}
+                onClick={() => void commitFog([{ kind: "all", mode: "hide" }])}
+              >
+                Hide All
+              </button>
+              <p>
+                Shift або середня кнопка — камера під час малювання. Зміни
+                зберігаються після відпускання кнопки.
+              </p>
+              {fogSaving && <p role="status">Зберігаємо туман…</p>}
+            </fieldset>
+          </details>
         </WorkspaceArea>
       )}
       {imageError && (
@@ -232,7 +263,7 @@ export function InteractiveMap({
         <button
           title="Збільшити масштаб карти"
           onClick={() =>
-            setCamera((c) => ({ ...c, scale: Math.min(10, c.scale * 1.25) }))
+            changeCamera((c) => ({ ...c, scale: Math.min(10, c.scale * 1.25) }))
           }
         >
           Збільшити
@@ -240,38 +271,44 @@ export function InteractiveMap({
         <button
           title="Зменшити масштаб карти"
           onClick={() =>
-            setCamera((c) => ({ ...c, scale: Math.max(0.05, c.scale / 1.25) }))
+            changeCamera((c) => ({
+              ...c,
+              scale: Math.max(0.05, c.scale / 1.25),
+            }))
           }
         >
           Зменшити
         </button>{" "}
         <button
           title="Вмістити локацію у вікно"
-          onClick={() => setCamera(fit())}
+          onClick={() => {
+            autoFit.current = true;
+            setCamera(fit());
+          }}
         >
-          Reset View
+          Вмістити карту
         </button>{" "}
         <button
           aria-label="Камера ліворуч"
-          onClick={() => setCamera((c) => ({ ...c, x: c.x + 50 }))}
+          onClick={() => changeCamera((c) => ({ ...c, x: c.x + 50 }))}
         >
           ←
         </button>
         <button
           aria-label="Камера праворуч"
-          onClick={() => setCamera((c) => ({ ...c, x: c.x - 50 }))}
+          onClick={() => changeCamera((c) => ({ ...c, x: c.x - 50 }))}
         >
           →
         </button>
         <button
           aria-label="Камера вгору"
-          onClick={() => setCamera((c) => ({ ...c, y: c.y + 50 }))}
+          onClick={() => changeCamera((c) => ({ ...c, y: c.y + 50 }))}
         >
           ↑
         </button>
         <button
           aria-label="Камера вниз"
-          onClick={() => setCamera((c) => ({ ...c, y: c.y - 50 }))}
+          onClick={() => changeCamera((c) => ({ ...c, y: c.y - 50 }))}
         >
           ↓
         </button>{" "}
@@ -287,7 +324,7 @@ export function InteractiveMap({
         ref={svg}
         role="img"
         aria-label={`Інтерактивна локація: ${scene.name}`}
-        viewBox="0 0 1000 650"
+        viewBox={`0 0 ${viewport.width} ${viewport.height}`}
         preserveAspectRatio="xMidYMid meet"
         style={{
           width: "100%",
@@ -308,7 +345,7 @@ export function InteractiveMap({
           else if (action.moved) {
             const dx = p.x - action.last.x,
               dy = p.y - action.last.y;
-            setCamera((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
+            changeCamera((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
           }
           action.last = p;
         }}

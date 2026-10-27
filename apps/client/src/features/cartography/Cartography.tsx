@@ -382,20 +382,22 @@ export function Cartography({
                       </>
                     )}
                     {dm && (
-                      <FragmentAdmin
-                        key={`${f.id}:${f.revision}`}
-                        base={base}
-                        fragment={f}
-                        ready={ready}
-                        storage={catalog.storageAvailable}
-                        run={run}
-                      />
+                      <div className="preparation-only">
+                        <FragmentAdmin
+                          key={`${f.id}:${f.revision}`}
+                          base={base}
+                          fragment={f}
+                          ready={ready}
+                          storage={catalog.storageAvailable}
+                          run={run}
+                        />
+                      </div>
                     )}
                   </li>
                 ))}
               </ul>
               {dm && (
-                <form onSubmit={addFragment}>
+                <form className="preparation-only" onSubmit={addFragment}>
                   <fieldset disabled={!ready}>
                     <label>
                       Новий приватний фрагмент{" "}
@@ -407,15 +409,17 @@ export function Cartography({
               )}
             </section>
             {dm && (
-              <MapAdmin
-                key={selected?.id ?? "new"}
-                base={base}
-                map={selected}
-                ready={ready}
-                storage={catalog.storageAvailable}
-                run={run}
-                choose={choose}
-              />
+              <div className="preparation-only">
+                <MapAdmin
+                  key={selected?.id ?? "new"}
+                  base={base}
+                  map={selected}
+                  ready={ready}
+                  storage={catalog.storageAvailable}
+                  run={run}
+                  choose={choose}
+                />
+              </div>
             )}
             {!catalog.storageAvailable && dm && (
               <p>

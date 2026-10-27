@@ -3,13 +3,19 @@ import type { DirectorSnapshot } from "@dnd/shared";
 import "./director.css";
 function PresentationContent({ state }: { state: DirectorSnapshot | null }) {
   const [failed, setFailed] = useState(false),
-    [attempt, setAttempt] = useState(0);
+    [attempt, setAttempt] = useState(0),
+    [loaded, setLoaded] = useState(false);
   if (!state) return <p role="status">Відновлюємо подачу…</p>;
   if (state.mode === "TABLE") return <p>Table · поточний ігровий стіл</p>;
   if (state.mode === "BLANK")
-    return <span className="director-sr-only">Темний екран для розповіді</span>;
+    return (
+      <span className="blank-mode-label" role="status">
+        Темний екран · DM розповідає історію
+      </span>
+    );
   const material = state.material;
-  if (!material?.image) return <p role="status">Зображення недоступне.</p>;
+  if (!material?.image)
+    return <p role="alert">DM ще не вибрав зображення для цього показу.</p>;
   return (
     <figure
       className={`director-figure ${state.mode === "PORTRAIT" ? "director-portrait" : "director-illustration"}`}
@@ -20,6 +26,7 @@ function PresentationContent({ state }: { state: DirectorSnapshot | null }) {
           <button
             onClick={() => {
               setFailed(false);
+              setLoaded(false);
               setAttempt((n) => n + 1);
             }}
           >
@@ -27,12 +34,18 @@ function PresentationContent({ state }: { state: DirectorSnapshot | null }) {
           </button>
         </p>
       ) : (
-        <img
-          key={attempt}
-          src={material.image.url}
-          alt={material.name}
-          onError={() => setFailed(true)}
-        />
+        <>
+          <span className="presentation-loading" role="status" hidden={loaded}>
+            Завантажуємо зображення…
+          </span>
+          <img
+            key={attempt}
+            src={material.image.url}
+            alt={material.name}
+            onError={() => setFailed(true)}
+            onLoad={() => setLoaded(true)}
+          />
+        </>
       )}
       {state.mode === "PORTRAIT" && (
         <figcaption>

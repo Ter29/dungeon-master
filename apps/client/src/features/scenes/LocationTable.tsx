@@ -161,7 +161,7 @@ export function LocationTable({
             </button>
           )}
         </div>
-        {role === "PLAYER" && combat?.encounter && (
+        {role === "PLAYER" && combat?.encounter?.status==='ACTIVE' && (
           <div className="compact-initiative">
             <h4>Раунд {combat.encounter.round}</h4>
             {combat.encounter.participants.map((p) => (

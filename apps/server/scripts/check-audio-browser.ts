@@ -365,7 +365,9 @@ try {
   for (const page of pages)
     await page.locator(".audio-personal summary").click();
   const versionBefore = state.version;
-  await pages[1]!.getByRole("checkbox", { name: "Mute", exact: true }).check();
+  await pages[1]!
+    .getByRole("checkbox", { name: "Без звуку", exact: true })
+    .check();
   await wait(
     async () => (await proof(pages[1]!)).rms.every((n) => n < 0.00001),
     "muted output is zero",
@@ -376,7 +378,7 @@ try {
   );
   assert.equal((await request(path + "/state")).version, versionBefore);
   await pages[1]!
-    .getByRole("checkbox", { name: "Mute", exact: true })
+    .getByRole("checkbox", { name: "Без звуку", exact: true })
     .uncheck();
   const musicSlider = pages[1]!.getByRole("slider", {
     name: "music volume",
@@ -437,6 +439,18 @@ try {
       f,
     )
   ).material;
+  await pages[0]!
+    .getByRole("button", { name: "Жива сесія", exact: true })
+    .click();
+  await pages[1]!
+    .getByRole("button", { name: "Занурення", exact: true })
+    .click();
+  assert.equal(
+    (await proof(pages[1]!)).playing,
+    2,
+    "audio survives immersive layout",
+  );
+  await pages[1]!.keyboard.press("Escape");
   for (const mode of ["PORTRAIT", "ILLUSTRATION", "BLANK", "TABLE"]) {
     const s = await request(`/api/campaigns/${campaign.id}/director/state`);
     await request(

@@ -337,12 +337,10 @@ export function DirectorControls({
             disabled={needsImage && !selected?.image}
             onClick={() => void show(mode)}
           >
-            Show to Players
+            Показати гравцям
           </button>{" "}
-          <button onClick={() => void show("BLANK")}>Hide</button>{" "}
-          <button onClick={() => void show("TABLE")}>
-            Повернути до Table Mode
-          </button>
+          <button onClick={() => void show("BLANK")}>Темний екран</button>{" "}
+          <button onClick={() => void show("TABLE")}>Повернути до стола</button>
         </fieldset>
         <div className="director-preview-label">
           <span className="live-pill">
@@ -387,6 +385,7 @@ export function DirectorControls({
               )
                 return;
               setSelected(null);
+              workspace?.setLive(false);
               setPreview(null);
               setError("");
             }}
@@ -471,25 +470,27 @@ export function DirectorControls({
             <button onClick={() => setPreview(null)}>Закрити Preview</button>
           </section>
         )}
-        <MaterialEditor
-          key={selected?.id ?? "new"}
-          base={base}
-          selected={selected}
-          latest={latest}
-          disabled={disabled}
-          storage={Boolean(library?.storageAvailable)}
-          run={run}
-          onSaved={(m) => {
-            if (!selected)
-              setMode(m.category === "NPC" ? "PORTRAIT" : "ILLUSTRATION");
-            setSelected(m);
-            setPreview(null);
-          }}
-          onDeleted={() => {
-            setSelected(null);
-            setPreview(null);
-          }}
-        />
+        <div className="preparation-only">
+          <MaterialEditor
+            key={selected?.id ?? "new"}
+            base={base}
+            selected={selected}
+            latest={latest}
+            disabled={disabled}
+            storage={Boolean(library?.storageAvailable)}
+            run={run}
+            onSaved={(m) => {
+              if (!selected)
+                setMode(m.category === "NPC" ? "PORTRAIT" : "ILLUSTRATION");
+              setSelected(m);
+              setPreview(null);
+            }}
+            onDeleted={() => {
+              setSelected(null);
+              setPreview(null);
+            }}
+          />
+        </div>
         {busy && <p role="status">Зберігаємо подачу…</p>}
       </WorkspaceArea>
     </section>
