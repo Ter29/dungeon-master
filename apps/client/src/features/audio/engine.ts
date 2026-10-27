@@ -10,6 +10,7 @@ export type LocalAudio = {
   music: number;
   ambience: number;
   sfx: number;
+  video: number;
   muted: boolean;
 };
 export const defaultAudio: LocalAudio = {
@@ -17,6 +18,7 @@ export const defaultAudio: LocalAudio = {
   music: 0.7,
   ambience: 0.6,
   sfx: 0.8,
+  video: 0.8,
   muted: false,
 };
 type Voice = {
@@ -42,6 +44,44 @@ export class CampaignAudioEngine {
   private lastDrift = 0;
   private disposed = false;
   private outputWasPlaying = false;
+  private video: {
+    element: HTMLVideoElement;
+    source: MediaElementAudioSourceNode;
+    gain: GainNode;
+  } | null = null;
+  private videoNodes = new WeakMap<
+    HTMLVideoElement,
+    { source: MediaElementAudioSourceNode; gain: GainNode }
+  >();
+  private duck = { music: 1, ambience: 1 };
+  isEnabled() {
+    return this.enabled && this.context?.state === "running";
+  }
+  setVideoDucking(active: boolean, music = 0.25, ambience = 0.25) {
+    this.duck = { music: active ? music : 1, ambience: active ? ambience : 1 };
+    this.tick();
+  }
+  attachVideo(element: HTMLVideoElement) {
+    if (!this.context || !this.master || !this.isEnabled()) return () => {};
+    let nodes = this.videoNodes.get(element);
+    if (!nodes) {
+      nodes = {
+        source: this.context.createMediaElementSource(element),
+        gain: this.context.createGain(),
+      };
+      nodes.source.connect(nodes.gain);
+      this.videoNodes.set(element, nodes);
+    }
+    nodes.gain.connect(this.master);
+    this.video = { element, ...nodes };
+    element.muted = false;
+    this.tick();
+    return () => {
+      nodes!.gain.disconnect();
+      if (this.video?.element === element) this.video = null;
+      this.setVideoDucking(false);
+    };
+  }
   constructor(private report: (message: string) => void) {
     this.timer = setInterval(() => this.tick(), 100);
     document.addEventListener("visibilitychange", this.visibility);
@@ -66,16 +106,16 @@ export class CampaignAudioEngine {
             );
         };
       }
-      let timer: ReturnType<typeof setTimeout> | undefined;
+      let timer: number | undefined;
       try {
         await Promise.race([
           this.context.resume(),
           new Promise((_, reject) => {
-            timer = setTimeout(() => reject(Error("blocked")), 5000);
+            timer = window.setTimeout(() => reject(Error("blocked")), 5000);
           }),
         ]);
       } finally {
-        clearTimeout(timer);
+        window.clearTimeout(timer);
       }
       if (this.context.state !== "running") throw Error("blocked");
       this.enabled = true;
@@ -227,6 +267,11 @@ export class CampaignAudioEngine {
       0.03,
     );
     const drift = now - this.lastDrift > 4000;
+    this.video?.gain.gain.setTargetAtTime(
+      this.settings.video,
+      this.context.currentTime,
+      0.03,
+    );
     if (drift) this.lastDrift = now;
     for (const [id, v] of this.voices) {
       let volume = this.settings.sfx;
@@ -253,6 +298,7 @@ export class CampaignAudioEngine {
           v.ended = true;
         }
         volume =
+          (v.key === "MUSIC" ? this.duck.music : this.duck.ambience) *
           c.volume *
           (v.key === "MUSIC" ? this.settings.music : this.settings.ambience) *
           (v.outgoing
@@ -277,9 +323,14 @@ export class CampaignAudioEngine {
     }
     const playing =
       this.context.state === "running" &&
-      [...this.voices.values()].some(
-        (v) => !v.audio.paused && !v.ended && v.audio.readyState >= 2,
-      );
+      (Boolean(
+        this.video &&
+          !this.video.element.paused &&
+          this.video.element.readyState >= 2,
+      ) ||
+        [...this.voices.values()].some(
+          (v) => !v.audio.paused && !v.ended && v.audio.readyState >= 2,
+        ));
     if (playing !== this.outputWasPlaying) {
       this.outputWasPlaying = playing;
       this.report(
@@ -298,6 +349,9 @@ export class CampaignAudioEngine {
     clearInterval(this.timer);
     document.removeEventListener("visibilitychange", this.visibility);
     for (const [id] of this.voices) this.remove(id);
+    this.video?.gain.disconnect();
+    this.video?.source.disconnect();
+    this.video = null;
     if (this.context) {
       this.context.onstatechange = null;
       void this.context.close();

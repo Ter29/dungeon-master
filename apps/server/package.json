@@ -33,7 +33,10 @@
     "test:cartography": "tsx --env-file-if-exists=.env scripts/check-cartography.ts",
     "test:combat": "tsx --env-file-if-exists=.env scripts/check-combat.ts",
     "test:combat-engine": "tsx scripts/check-combat-engine.ts",
-    "test:director": "tsx --env-file-if-exists=.env scripts/check-director.ts"
+    "test:director": "tsx --env-file-if-exists=.env scripts/check-director.ts",
+    "test:video": "tsx --env-file-if-exists=.env scripts/check-video.ts",
+    "test:video-browser": "tsx --env-file-if-exists=.env scripts/check-video-browser.ts",
+    "test:media-stream": "tsx --env-file-if-exists=.env scripts/check-media-stream.ts"
   },
   "dependencies": {
     "@dnd/shared": "^0.0.0",

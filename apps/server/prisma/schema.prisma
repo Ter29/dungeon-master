@@ -39,6 +39,8 @@ model Session {
 }
 
 model Campaign {
+  videos                 VideoAsset[]
+  videoPlayback          VideoPlayback?
   audioVersion           Int                    @default(0)
   audioAssets            AudioAsset[]
   audioChannels          AudioChannel[]
@@ -354,6 +356,41 @@ enum DisplayMode {
   ILLUSTRATION
   PORTRAIT
   BLANK
+  VIDEO
+}
+
+model VideoAsset {
+  id          String @id @default(uuid()) @db.Uuid
+  campaignId  String @db.Uuid
+  name        String @db.VarChar(120)
+  description String @default("") @db.VarChar(2000)
+  storageKey  String @unique
+  byteSize    Int
+  duration    Float
+  width       Int
+  height      Int
+  hasAudio    Boolean
+  revision    Int @default(0)
+  deletedAt   DateTime? @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  playingIn   VideoPlayback[]
+  @@index([campaignId])
+  @@index([deletedAt])
+}
+
+model VideoPlayback {
+  campaignId String @id @db.Uuid
+  assetId String? @db.Uuid
+  status AudioStatus @default(STOPPED)
+  position Float @default(0)
+  startedAt DateTime? @db.Timestamptz(3)
+  previousMode DisplayMode @default(TABLE)
+  previousMaterialId String? @db.Uuid
+  duckMusic Float @default(0.25)
+  duckAmbience Float @default(0.25)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  asset VideoAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 }
 
 enum PresentationCategory {

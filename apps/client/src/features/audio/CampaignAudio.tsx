@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { PlaybackContext } from "./PlaybackContext";
 import type {
   AudioSnapshot,
   AudioCueView,
@@ -20,6 +21,7 @@ export function CampaignAudio({
   cues,
   libraryKey,
   refresh,
+  children,
 }: {
   campaignId: string;
   dm: boolean;
@@ -27,6 +29,7 @@ export function CampaignAudio({
   cues: AudioCueView[];
   libraryKey: number;
   refresh: () => void;
+  children?: ReactNode;
 }) {
   const { user } = useAuth();
   const workspace = useWorkspace(),
@@ -58,6 +61,11 @@ export function CampaignAudio({
     updateWorkspace?.({ music: c?.voice ? c.voice.asset.name : "Тиша" });
   }, [state, updateWorkspace]);
   const engine = useRef<CampaignAudioEngine | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  async function enable() {
+    await engine.current?.enable();
+    setEnabled(Boolean(engine.current?.isEnabled()));
+  }
   const [status, setStatus] = useState(
     "Натисніть «Увімкнути звук», щоб чути кампанію.",
   );
@@ -96,7 +104,13 @@ export function CampaignAudio({
       const s = JSON.parse(localStorage.getItem(storageKey) ?? "null");
       if (s) {
         const value = { ...defaultAudio };
-        for (const k of ["master", "music", "ambience", "sfx"] as const)
+        for (const k of [
+          "master",
+          "music",
+          "ambience",
+          "sfx",
+          "video",
+        ] as const)
           if (typeof s[k] === "number" && Number.isFinite(s[k]))
             value[k] = Math.min(1, Math.max(0, s[k]));
         value.muted = s.muted === true;
@@ -162,12 +176,19 @@ export function CampaignAudio({
     );
   }
   return (
-    <>
+    <PlaybackContext.Provider
+      value={{
+        engine: engine.current,
+        local,
+        enabled,
+        enable: () => void enable(),
+        change: setLocal,
+      }}
+    >
+      {children}
       <WorkspaceArea name="audio.footer">
         <aside className="audio-personal" aria-label="Особистий звук">
-          <button onClick={() => void engine.current?.enable()}>
-            Увімкнути звук
-          </button>
+          <button onClick={() => void enable()}>Увімкнути звук</button>
           <p
             className={
               /заблок|недоступ|не почал|призупинив|не вдало/i.test(status)
@@ -201,23 +222,25 @@ export function CampaignAudio({
               />{" "}
               Без звуку
             </label>
-            {(["master", "music", "ambience", "sfx"] as const).map((k) => (
-              <label className="audio-volume" key={k}>
-                {k}{" "}
-                <input
-                  aria-label={`${k} volume`}
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={local[k]}
-                  onChange={(e) =>
-                    setLocal({ ...local, [k]: Number(e.target.value) })
-                  }
-                />
-                <output>{Math.round(local[k] * 100)}%</output>
-              </label>
-            ))}
+            {(["master", "music", "ambience", "sfx", "video"] as const).map(
+              (k) => (
+                <label className="audio-volume" key={k}>
+                  {k}{" "}
+                  <input
+                    aria-label={`${k} volume`}
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={local[k]}
+                    onChange={(e) =>
+                      setLocal({ ...local, [k]: Number(e.target.value) })
+                    }
+                  />
+                  <output>{Math.round(local[k] * 100)}%</output>
+                </label>
+              ),
+            )}
           </details>
         </aside>
       </WorkspaceArea>
@@ -487,7 +510,7 @@ export function CampaignAudio({
           </div>
         </WorkspaceArea>
       )}
-    </>
+    </PlaybackContext.Provider>
   );
 }
 function Channel({

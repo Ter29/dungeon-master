@@ -1,7 +1,7 @@
 import { Router, type RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
-import { Readable, Transform } from "node:stream";
-import { pipeline } from "node:stream/promises";
+import { streamMedia } from "../media/stream.js";
+
 import multer, { MulterError } from "multer";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
@@ -458,7 +458,6 @@ audioRouter.post("/cues", dm, changes, async (req, res) => {
   res.status(201).json({ id: cue.id });
 });
 
-let streaming = 0;
 audioRouter.get("/assets/:assetId/file", reads, async (req, res) => {
   async function allowed() {
     const u = await sessionUser(req);
@@ -492,64 +491,11 @@ audioRouter.get("/assets/:assetId/file", reads, async (req, res) => {
     throw new SceneError(404, "Аудіо не знайдено.");
   }
   const a = await allowed();
-  if (streaming >= 8)
-    throw new SceneError(429, "Зачекайте завершення завантаження аудіо.");
-  const range = req.headers.range;
-  if (range && !/^bytes=\d*-\d*$/.test(range)) {
-    res.status(416).set("Content-Range", `bytes */${a.byteSize}`).end();
-    return;
-  }
-  streaming++;
-  const abort = new AbortController(),
-    timer = setTimeout(() => abort.abort(), 120000);
-  const close = () => abort.abort();
-  res.once("close", close);
-  try {
-    const upstream = await fetch(audioDeliveryUrl(a.storageKey, a.format), {
-      headers: range ? { Range: range } : {},
-      signal: abort.signal,
-    });
-    if (upstream.status === 416) {
-      res.status(416).set("Content-Range", `bytes */${a.byteSize}`).end();
-      return;
-    }
-    if (!upstream.ok || !upstream.body)
-      throw new SceneError(503, "Сховище аудіо тимчасово недоступне.");
-    await allowed();
-    res
-      .status(upstream.status === 206 ? 206 : 200)
-      .set({
-        "Content-Type": a.mimeType,
-        "Cache-Control": "private, no-store",
-        "Accept-Ranges": "bytes",
-      });
-    for (const h of ["content-length", "content-range"]) {
-      const v = upstream.headers.get(h);
-      if (v) res.set(h, v);
-    }
-    let bytes = 0;
-    await pipeline(
-      Readable.fromWeb(upstream.body as never),
-      new Transform({
-        transform(chunk, _encoding, cb) {
-          bytes += chunk.length;
-          cb(
-            bytes > a.byteSize ? Error("Audio response exceeded size") : null,
-            chunk,
-          );
-        },
-      }),
-      res,
-      { signal: abort.signal },
-    );
-  } catch (e) {
-    if (res.headersSent || abort.signal.aborted) res.destroy();
-    else if (e instanceof SceneError) throw e;
-    else throw new SceneError(503, "Не вдалося завантажити аудіо.");
-  } finally {
-    clearTimeout(timer);
-    res.off("close", close);
-    abort.abort();
-    streaming--;
-  }
+  await streamMedia(
+    req,
+    res,
+    { byteSize: a.byteSize, mimeType: a.mimeType },
+    () => audioDeliveryUrl(a.storageKey, a.format),
+    allowed,
+  );
 });

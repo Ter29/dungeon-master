@@ -8,6 +8,7 @@ import type {
 } from "@dnd/shared";
 import { api, errorMessage } from "../../lib/api";
 import { PresentationScreen } from "./PresentationScreen";
+import { VideoLibrary } from "./VideoLibrary";
 import {
   WorkspaceArea,
   useDraftWarning,
@@ -306,6 +307,14 @@ export function DirectorControls({
     needsImage = mode === "ILLUSTRATION" || mode === "PORTRAIT";
   return (
     <section aria-label="Cinematic Scene Director">
+      <VideoLibrary
+        campaignId={campaignId}
+        state={state}
+        ready={ready}
+        refreshKey={refreshKey}
+        onState={onState}
+        refresh={refreshState}
+      />
       <WorkspaceArea name="director.main">
         <div className="section-intro">
           <span className="eyebrow">SET THE SCENE</span>

@@ -5,6 +5,7 @@ import { api, errorMessage } from "../../lib/api";
 import { DirectorControls } from "./DirectorControls";
 import { PresentationScreen } from "./PresentationScreen";
 import { CampaignAudio } from "../audio/CampaignAudio";
+import { VideoPlayer } from "./VideoPlayer";
 import { WorkspaceArea, useWorkspace } from "../workspace/Workspace";
 import type { AudioSnapshot, AudioCueView } from "@dnd/shared";
 export function CinematicDirector({
@@ -28,6 +29,23 @@ export function CinematicDirector({
   const [audio, setAudio] = useState<AudioSnapshot | null>(null),
     [cues, setCues] = useState<AudioCueView[]>([]),
     [audioLibraryKey, setAudioLibraryKey] = useState(0);
+  const [videoDisplay, setVideoDisplay] = useState<DirectorSnapshot | null>(
+      null,
+    ),
+    [videoClosing, setVideoClosing] = useState(false);
+  useEffect(() => {
+    if (state?.mode === "VIDEO" && state.video) {
+      setVideoDisplay(state);
+      setVideoClosing(false);
+      return;
+    }
+    setVideoClosing(true);
+    const timer = window.setTimeout(
+      () => setVideoDisplay(null),
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180,
+    );
+    return () => window.clearTimeout(timer);
+  }, [state]);
   const socketRef = useRef<Socket<ServerEvents, ClientEvents> | null>(null);
   function accept(value: DirectorSnapshot) {
     setState((previous) =>
@@ -99,7 +117,8 @@ export function CinematicDirector({
       onTable();
     if (state) previousMode.current = state.mode;
   }, [state?.mode, onTable]);
-  const covered = !dm && (!state || state.mode !== "TABLE");
+  const covered =
+    state?.mode === "VIDEO" || (!dm && (!state || state.mode !== "TABLE"));
   useEffect(() => {
     updateWorkspace?.({ mode: state?.mode ?? "Підключення" });
   }, [state?.mode, updateWorkspace]);
@@ -122,39 +141,55 @@ export function CinematicDirector({
         refresh={() => {
           socketRef.current?.emit("room:sync", () => {});
         }}
-      />
-      {dm && (
-        <WorkspaceArea name="director.context">
-          <>
-            <p role="status">
-              {status}{" "}
-              <button onClick={() => setRetry((n) => n + 1)}>
-                Перепідключити подачу
-              </button>
-            </p>
-            <DirectorControls
-              campaignId={campaignId}
-              state={state}
-              ready={online && Boolean(state)}
-              refreshKey={libraryKey}
-              onState={accept}
-              refreshState={refresh}
-            />
-          </>
-        </WorkspaceArea>
-      )}
-      <div data-director-workspace="true" inert={covered} aria-hidden={covered}>
-        {children}
-      </div>
-      {!dm && (
-        <WorkspaceArea name="table.main">
-          <PresentationScreen
-            state={state}
-            fullscreen
-            label="Екран презентації гравця"
+      >
+        {videoDisplay?.video && (
+          <VideoPlayer
+            key={videoDisplay.video.asset.id}
+            campaignId={campaignId}
+            state={videoDisplay}
+            closing={videoClosing}
+            dm={dm}
+            onState={accept}
+            refresh={refresh}
           />
-        </WorkspaceArea>
-      )}
+        )}
+        {dm && (
+          <WorkspaceArea name="director.context">
+            <>
+              <p role="status">
+                {status}{" "}
+                <button onClick={() => setRetry((n) => n + 1)}>
+                  Перепідключити подачу
+                </button>
+              </p>
+              <DirectorControls
+                campaignId={campaignId}
+                state={state}
+                ready={online && Boolean(state)}
+                refreshKey={libraryKey}
+                onState={accept}
+                refreshState={refresh}
+              />
+            </>
+          </WorkspaceArea>
+        )}
+        <div
+          data-director-workspace="true"
+          inert={covered}
+          aria-hidden={covered}
+        >
+          {children}
+        </div>
+        {!dm && (
+          <WorkspaceArea name="table.main">
+            <PresentationScreen
+              state={state}
+              fullscreen
+              label="Екран презентації гравця"
+            />
+          </WorkspaceArea>
+        )}
+      </CampaignAudio>
     </>
   );
 }
